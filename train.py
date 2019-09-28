@@ -59,7 +59,7 @@ def main():
     model = model.cuda(args.gpu)
 
     # define loss function (criterion) and optimizer
-    criterion = nn.L1Loss().cuda(args.gpu)
+    criterion = nn.MSELoss().cuda(args.gpu)
 
     #optimizer = torch.optim.SGD(model.parameters(), args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
     optimizer = torch.optim.Adam(model.parameters(), args.lr)
@@ -81,10 +81,10 @@ def main():
     cudnn.benchmark = True
 
     # Data loading code
-    train_input_path = os.path.join(args.data, 'train_input.csv')
-    train_output_path = os.path.join(args.data, 'train_output.csv')
-    val_input_path = os.path.join(args.data, 'val_input.csv')
-    val_output_path = os.path.join(args.data, 'val_output.csv')
+    train_input_path = os.path.join(args.data, 'train_input.pth')
+    train_output_path = os.path.join(args.data, 'train_output.pth')
+    val_input_path = os.path.join(args.data, 'val_input.pth')
+    val_output_path = os.path.join(args.data, 'val_output.pth')
     train_dataset = CSVdata(train_input_path, train_output_path)
     val_dataset = CSVdata(val_input_path, val_output_path)
     sstot_train = train_dataset.sstot
@@ -139,12 +139,17 @@ def train(train_loader, model, criterion, optimizer, epoch, sstot, args):
 
         # compute output
         output = model(inputs)
-        loss = criterion(output, target)
+        target = target.transpose(0,1)
+        loss = 0.0
+        ssres = 0.0
+        for j in range(len(output)):        
+            loss += criterion(output[j], target[j])
+            ssres += (target[j] - output[j]).pow(2).sum()
 
         # measure accuracy and record loss
-        ssres = (target - output).pow(2).sum()
+        #ssres = (target - output).pow(2).sum()
         losses.update(loss.item(), inputs.size(0))
-        ssres_vals.update(ssres.item(), inputs.size(0))
+        ssres_vals.update(ssres.item(), 1)
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
@@ -189,12 +194,17 @@ def validate(val_loader, model, criterion, epoch, sstot, best_r2, args):
 
             # compute output
             output = model(inputs)
-            loss = criterion(output, target)
+            target = target.transpose(0,1)
+            loss = 0.0
+            ssres = 0.0
+            for j in range(len(output)):        
+                loss += criterion(output[j], target[j])
+                ssres += (target[j] - output[j]).pow(2).sum()
 
             # measure accuracy and record loss
-            ssres = (target - output).pow(2).sum()
+            #ssres = (target - output).pow(2).sum()
             losses.update(loss.item(), inputs.size(0))
-            ssres_vals.update(ssres.item(), inputs.size(0))
+            ssres_vals.update(ssres.item(), 1)
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -215,10 +225,10 @@ def validate(val_loader, model, criterion, epoch, sstot, best_r2, args):
 
         progress.display(i+1)
 
-        #print(output[10][20:30])
-        #print(target[10][20:30])
-        #print(10**(10.0*output[20]))
-        #print(10**(10.0*target[20]))
+        print(output[10][10])
+        print(target[10, 10])
+        print(10**(10.0*output[10][10]))
+        print(10**(10.0*target[10, 10]))
 
     return is_best, best_r2
 
