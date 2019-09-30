@@ -15,10 +15,12 @@ import torch.multiprocessing as mp
 import torch.utils.data
 from csvdata import read_data
 from csvdata import CSVdata
-from modelnet import ModelNet
+from model_lstm import ModelLSTM
+from model_simple import ModelSimple
 
 parser = argparse.ArgumentParser(description='Simulation Data Training')
 parser.add_argument('--data', default='', type=str, help='path to dataset')
+parser.add_argument('--lstm', action='store_true', help='use lstm')
 parser.add_argument('-j', '--workers', default=4, type=int, help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', default=100, type=int, help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, help='manual epoch number (useful on restarts)')
@@ -53,7 +55,10 @@ def main():
     print("Use GPU: {} for training".format(args.gpu))
 
     # create model
-    model = ModelNet()
+    if args.lstm:
+        model = ModelLSTM()
+    else:
+        model = ModelSimple()
 
     torch.cuda.set_device(args.gpu)
     model = model.cuda(args.gpu)
@@ -139,12 +144,17 @@ def train(train_loader, model, criterion, optimizer, epoch, sstot, args):
 
         # compute output
         output = model(inputs)
-        target = target.transpose(0,1)
-        loss = 0.0
-        ssres = 0.0
-        for j in range(len(output)):        
-            loss += criterion(output[j], target[j])
-            ssres += (target[j] - output[j]).pow(2).sum()
+        if args.lstm:
+            target = target.transpose(0,1)
+            loss = 0.0
+            ssres = 0.0
+            for j in range(len(output)):        
+                loss += criterion(output[j], target[j])
+                ssres += (target[j] - output[j]).pow(2).sum()
+        else:
+            target = target.view(target.size(0), -1)
+            loss = criterion(output, target)
+            ssres = (target - output).pow(2).sum()
 
         # measure accuracy and record loss
         #ssres = (target - output).pow(2).sum()
@@ -194,12 +204,17 @@ def validate(val_loader, model, criterion, epoch, sstot, best_r2, args):
 
             # compute output
             output = model(inputs)
-            target = target.transpose(0,1)
-            loss = 0.0
-            ssres = 0.0
-            for j in range(len(output)):        
-                loss += criterion(output[j], target[j])
-                ssres += (target[j] - output[j]).pow(2).sum()
+            if args.lstm:
+                target = target.transpose(0,1)
+                loss = 0.0
+                ssres = 0.0
+                for j in range(len(output)):        
+                    loss += criterion(output[j], target[j])
+                    ssres += (target[j] - output[j]).pow(2).sum()
+            else:
+                target = target.view(target.size(0), -1)
+                loss = criterion(output, target)
+                ssres = (target - output).pow(2).sum()
 
             # measure accuracy and record loss
             #ssres = (target - output).pow(2).sum()
@@ -225,10 +240,10 @@ def validate(val_loader, model, criterion, epoch, sstot, best_r2, args):
 
         progress.display(i+1)
 
-        print(output[10][10])
-        print(target[10, 10])
-        print(10**(10.0*output[10][10]))
-        print(10**(10.0*target[10, 10]))
+        #print(output[10][12])
+        #print(target[10][12])
+        #print(10**(10.0*output[10][12]))
+        #print(10**(10.0*target[10][12]))
 
     return is_best, best_r2
 

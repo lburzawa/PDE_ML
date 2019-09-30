@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
 
-class ModelNet(nn.Module):
+class ModelLSTM(nn.Module):
     
     def __init__(self):
-        super(ModelNet, self).__init__()
+        super(ModelLSTM, self).__init__()
         self.relu = nn.ReLU(inplace=True)
         self.dropout = nn.Dropout()
         self.fc1 = nn.Linear(22, 128)
