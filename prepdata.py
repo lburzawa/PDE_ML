@@ -102,10 +102,10 @@ ind = torch.randperm(data_size)
 input_data = input_data[ind]
 output_data = output_data[ind]
 train_size = int(0.9 * data_size)
-train_data_input = input_data[:train_size]
-train_data_output = output_data[:train_size]
-val_data_input = input_data[train_size:]
-val_data_output = output_data[train_size:]
+train_data_input = input_data[:train_size].clone()
+train_data_output = output_data[:train_size].clone()
+val_data_input = input_data[train_size:].clone()
+val_data_output = output_data[train_size:].clone()
 torch.save(train_data_input, os.path.join(args.output_dir, 'train_input.pth'))
 torch.save(train_data_output, os.path.join(args.output_dir, 'train_output.pth'))
 torch.save(val_data_input, os.path.join(args.output_dir, 'val_input.pth'))

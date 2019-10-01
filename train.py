@@ -98,7 +98,7 @@ def main():
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.workers, pin_memory=True)
 
     if args.evaluate:
-        validate(val_loader, model, criterion, 0, sstot_val, best_r2, args)
+        validate(val_loader, model, criterion, -1, sstot_val, best_r2, args)
         return
 
     for epoch in range(args.start_epoch, args.epochs):
@@ -189,6 +189,8 @@ def validate(val_loader, model, criterion, epoch, sstot, best_r2, args):
         len(val_loader),
         [batch_time, data_time, losses, r2_scores, best_r2_obj],
         prefix='Test:  [{}]'.format(epoch))
+    if epoch==-1:
+        results = torch.zeros(len(val_loader.dataset), 36, 6)
 
     # switch to evaluate mode
     model.eval()
@@ -211,7 +213,10 @@ def validate(val_loader, model, criterion, epoch, sstot, best_r2, args):
                 for j in range(len(output)):        
                     loss += criterion(output[j], target[j])
                     ssres += (target[j] - output[j]).pow(2).sum()
+                
             else:
+                if epoch==-1:
+                    results[i*val_loader.batch_size : (i+1)*val_loader.batch_size] = output.view(output.size(0), 36, 6)
                 target = target.view(target.size(0), -1)
                 loss = criterion(output, target)
                 ssres = (target - output).pow(2).sum()
@@ -239,11 +244,13 @@ def validate(val_loader, model, criterion, epoch, sstot, best_r2, args):
         best_r2_obj.update(best_r2)
 
         progress.display(i+1)
+        if epoch==-1:
+            torch.save(results, './results.pth')
 
-        #print(output[10][12])
-        #print(target[10][12])
-        #print(10**(10.0*output[10][12]))
-        #print(10**(10.0*target[10][12]))
+        #print(output[12,100:110])
+        #print(target[12,100:110])
+        #print(10**(10.0*output[12,100:110]))
+        #print(10**(10.0*target[12,100:110]))
 
     return is_best, best_r2
 

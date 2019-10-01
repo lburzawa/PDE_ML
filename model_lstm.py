@@ -7,7 +7,7 @@ class ModelLSTM(nn.Module):
         super(ModelLSTM, self).__init__()
         self.relu = nn.ReLU(inplace=True)
         self.dropout = nn.Dropout()
-        self.fc1 = nn.Linear(22, 128)
+        self.fc1 = nn.Linear(23, 128)
         self.bn1 = nn.BatchNorm1d(128)
         self.fc2 = nn.Linear(6, 128)
         self.bn2 = nn.BatchNorm1d(1024)

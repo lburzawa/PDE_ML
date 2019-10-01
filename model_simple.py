@@ -7,7 +7,7 @@ class ModelSimple(nn.Module):
         super(ModelSimple, self).__init__()
         self.relu = nn.ReLU(inplace=True)
         self.dropout = nn.Dropout()
-        self.fc1 = nn.Linear(22, 1024)
+        self.fc1 = nn.Linear(23, 1024)
         self.bn1 = nn.BatchNorm1d(1024)
         self.fc2 = nn.Linear(1024, 1024)
         self.bn2 = nn.BatchNorm1d(1024)
