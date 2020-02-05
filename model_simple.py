@@ -7,13 +7,10 @@ class ModelSimple(nn.Module):
         super(ModelSimple, self).__init__()
         self.relu = nn.ReLU(inplace=True)
         self.dropout = nn.Dropout()
-        self.fc1 = nn.Linear(23, 1024)
-        self.bn1 = nn.BatchNorm1d(1024)
-        self.fc2 = nn.Linear(1024, 1024)
-        self.bn2 = nn.BatchNorm1d(1024)
-        self.fc3 = nn.Linear(256, 6)
-        self.bn3 = nn.BatchNorm1d(1024)
-        self.fc4 = nn.Linear(1024, 216)
+        self.fc1 = nn.Linear(23, 2048)
+        self.fc2 = nn.Linear(2048, 2048)
+        #self.fc3 = nn.Linear(256, 6)
+        self.fc4 = nn.Linear(2048, 36)
 
     def forward(self, x):
 

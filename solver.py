@@ -44,7 +44,7 @@ class Parameters:
         self.Vs = 100.0
         self.kit = 510.7204  # para_grid_ki[0]  # inhibitor constant of proteinase Tolloid
         self.kia = 550.5586  # para_grid_ki[1]  # inhibitor constant of proteinase bmp1a
-        self.k = 25.8752 ** self.nu  # parameter for hill function
+        self.k = 25.8752  # parameter for hill function
         self.ndor_Chd = round(self.Ldor_Chd * self.n / self.Ltot)
         self.ndor_Nog = round(self.Ldor_Nog * self.n / self.Ltot)
         x_lig = np.arange(0.0, self.Ltot + dx / 2, dx)
@@ -73,10 +73,10 @@ def crandint(min_val, max_val):
     return (max_val - min_val) * (randint(0, 15)/15.0) + min_val
 
 def set_continuous_parameters(parameters):
-    parameters.D_Nog = (10 ** uniform(-2.0, 2.0)) / parameters.dx2
-    parameters.D_BMPChd = (10 ** uniform(-2.0, 2.0)) / parameters.dx2
-    parameters.D_BMPNog = (10 ** uniform(-2.0, 2.0)) / parameters.dx2
-    parameters.D_Chd = 0.5 * (10 ** uniform(0.0, 2.0)) / parameters.dx2
+    parameters.D_Nog = (10 ** uniform(-2.0, 2.0))
+    parameters.D_BMPChd = (10 ** uniform(-2.0, 2.0))
+    parameters.D_BMPNog = (10 ** uniform(-2.0, 2.0))
+    parameters.D_Chd = 0.5 * (10 ** uniform(0.0, 2.0))
     parameters.dec_Nog = 10 ** uniform(-5.0, -1.0)
     parameters.dec_Szd = 10 ** uniform(-5.0, -1.0)
     parameters.dec_BMPChd = 10 ** uniform(-5.0, -3.0)
@@ -125,6 +125,15 @@ def set_discrete_parameters(parameters):
         if parameters.j2 > parameters.j1:
             break
 
+
+def normalize_inputs(data):
+    data = torch.abs(data)
+    data[abs(data) < 1e-5] = 1e-5
+    data = torch.log10(data)
+    data /= 10.0
+    return data
+
+
 def prepare_inputs(parameters):
     inputs = torch.zeros(23)
     inputs[0] = parameters.D_Nog
@@ -150,35 +159,96 @@ def prepare_inputs(parameters):
     inputs[20] = parameters.kit
     inputs[21] = parameters.kia
     inputs[22] = parameters.Vs
+    #print(inputs)
     inputs = inputs.unsqueeze(0)
+    inputs = normalize_inputs(inputs)
     return inputs
+
+
+def inputs2parameters(inputs):
+    parameters = Parameters()
+    inputs = inputs.cpu().numpy().astype(np.float64)
+    inputs = np.power(10, 10.0 * inputs)
+    parameters.D_Nog = inputs[0]
+    parameters.D_BMPChd = inputs[1]
+    parameters.D_BMPNog = inputs[2]
+    parameters.D_Chd = inputs[3]
+    parameters.dec_Nog = inputs[4]
+    parameters.dec_Szd = inputs[5]
+    parameters.dec_BMPChd = inputs[6]
+    parameters.dec_BMPNog = inputs[7]
+    parameters.j3 = inputs[8]
+    parameters.k1 = inputs[9]
+    parameters.k_1 = parameters.k1
+    parameters.k2 = inputs[10]
+    parameters.k_2 = 0.1 * parameters.k2
+    parameters.kmt = inputs[11]
+    parameters.kma = inputs[12]
+    parameters.lambda_Tld_Chd = inputs[13]
+    parameters.lambda_Tld_BMPChd = inputs[14]
+    parameters.lambda_bmp1a_Chd = inputs[15]
+    parameters.lambda_bmp1a_BMPChd = inputs[16]
+    parameters.j1 = inputs[17]
+    parameters.j2 = inputs[18]
+    parameters.k = inputs[19]
+    parameters.kit = inputs[20]
+    parameters.kia = inputs[21]
+    parameters.Vs = inputs[22]
+    return parameters
 
 
 def solve_pde(parameters, ref_exp):
     fun = set_ode_fun(parameters)
     sol = solve_ivp(fun, parameters.tspan, parameters.init, method='BDF', rtol=1e-9)
     BMP = sol.y[:36, -1]
+    #print(BMP)
+    #print(np.log10(BMP)/10.0)
     ref = (np.sort(BMP)[-5:]).mean()
     BMP *= ref_exp / ref
     BMP = BMP[0:32:2]
     return BMP
 
 
-def run_simulation(parameters):
+def solve_pde_nn(parameters, ref_exp, model):
+    inputs = prepare_inputs(parameters).cuda()
+    y = model(inputs).squeeze().detach() #.numpy()
+    y = y.view(36, 6).cpu().numpy()
+    y = np.power(10.0, 10.0 * y)
+    BMP = y[:, 1]
+    #print(BMP)
+    ref = (np.sort(BMP)[-5:]).mean()
+    BMP *= ref_exp / ref
+    BMP = BMP[0:32:2]
+    return BMP
+
+
+def run_simulation(parameters, model):
     # WT simulation
     WT_sim = solve_pde(parameters, parameters.WT_ref_exp)
+    WT_nn = solve_pde_nn(parameters, parameters.WT_ref_exp, model)
     WT_nrmse = np.sqrt(np.power(WT_sim - parameters.WT_exp, 2).mean()) / 61.9087
+    WT_nrmse_nn = np.sqrt(np.power(WT_nn - parameters.WT_exp, 2).mean()) / 61.9087
+    WT_error = abs(WT_nrmse - WT_nrmse_nn) / WT_nrmse
+    #print(WT_sim)
+    #print(WT_nn)
+    
     # CLF simulation
     j2 = parameters.j2
     parameters.j2 = 0.0
     CLF_sim = solve_pde(parameters, parameters.CLF_ref_exp)
+    CLF_nn = solve_pde_nn(parameters, parameters.CLF_ref_exp, model)
     CLF_nrmse = np.sqrt(np.power(CLF_sim - parameters.CLF_exp, 2).mean()) / 61.9087
+    CLF_nrmse_nn = np.sqrt(np.power(CLF_nn - parameters.CLF_exp, 2).mean()) / 61.9087
+    CLF_error = abs(CLF_nrmse - CLF_nrmse_nn) / CLF_nrmse
     parameters.j2 = j2
     # NLF simulation
     j3 = parameters.j3
     parameters.j3 = 0.0
     NLF_sim = solve_pde(parameters, parameters.WT_ref_exp)
+    NLF_nn = solve_pde_nn(parameters, parameters.WT_ref_exp, model)
     NLF_nrmse = np.sqrt(np.power(NLF_sim - parameters.WT_exp, 2).mean()) / 61.9087
+    NLF_nrmse_nn = np.sqrt(np.power(NLF_nn - parameters.WT_exp, 2).mean()) / 61.9087
+    NLF_error = abs(NLF_nrmse - NLF_nrmse_nn) / NLF_nrmse
     parameters.j3 = j3
     # ALF simulation
     lambda_bmp1a_Chd = parameters.lambda_bmp1a_Chd
@@ -186,7 +256,10 @@ def run_simulation(parameters):
     parameters.lambda_bmp1a_Chd = 0.0
     parameters.lambda_bmp1a_BMPChd = 0.0
     ALF_sim = solve_pde(parameters, parameters.ALF_ref_exp)
+    ALF_nn = solve_pde_nn(parameters, parameters.ALF_ref_exp, model)
     ALF_nrmse = np.sqrt(np.power(ALF_sim - parameters.ALF_exp, 2).mean()) / 61.9087
+    ALF_nrmse_nn = np.sqrt(np.power(ALF_nn - parameters.ALF_exp, 2).mean()) / 61.9087
+    ALF_error = abs(ALF_nrmse - ALF_nrmse_nn) / ALF_nrmse
     parameters.lambda_bmp1a_Chd = lambda_bmp1a_Chd
     parameters.lambda_bmp1a_BMPChd = lambda_bmp1a_BMPChd
     # TLF simulation
@@ -195,34 +268,42 @@ def run_simulation(parameters):
     parameters.lambda_Tld_Chd = 0.0
     parameters.lambda_Tld_BMPChd = 0.0
     TLF_sim = solve_pde(parameters, parameters.TLF_ref_exp)
+    TLF_nn = solve_pde_nn(parameters, parameters.TLF_ref_exp, model)
     TLF_nrmse = np.sqrt(np.power(TLF_sim - parameters.TLF_exp, 2).mean()) / 61.9087
+    TLF_nrmse_nn = np.sqrt(np.power(TLF_nn - parameters.TLF_exp, 2).mean()) / 61.9087
+    TLF_error = abs(TLF_nrmse - TLF_nrmse_nn) / TLF_nrmse
     parameters.lambda_Tld_Chd = lambda_Tld_Chd
     parameters.lambda_Tld_BMPChd = lambda_Tld_BMPChd
-    return [WT_nrmse, CLF_nrmse, NLF_nrmse, ALF_nrmse, TLF_nrmse]
+
+    total_error = 100.0 * (WT_error + CLF_error + NLF_error + ALF_error + TLF_error) / 5.0
+    
+    return [[WT_nrmse, WT_nrmse_nn], [CLF_nrmse, CLF_nrmse_nn], [NLF_nrmse, NLF_nrmse_nn], [ALF_nrmse, ALF_nrmse_nn], [TLF_nrmse, TLF_nrmse_nn], total_error]
 
 
 if __name__ == '__main__':
-    random.seed(0)
+    #random.seed(0)
     os.environ['MKL_NUM_THREADS'] = '1'
 
-    model = ModelSimple()
+    model = ModelSimple().cuda().eval()
     model_path = './model_best.pth.tar'
     print("=> loading checkpoint '{}'".format(model_path))
     checkpoint = torch.load(model_path)
     best_r2 = checkpoint['best_r2']
     model.load_state_dict(checkpoint['state_dict'])
     print("=> loaded checkpoint '{}' (epoch {})".format(model_path, checkpoint['epoch']))
-    inputs = prepare_inputs(parameters)
 
     parameters_list = []
     min_val = 1.0
-    for i in range(1000):
+    total_error = 0.0
+    for i in range(100):
         parameters = Parameters()
-        set_discrete_parameters(parameters)
+        set_continuous_parameters(parameters)
         parameters_list.append(parameters)
     start_time = time()
-    for i in range(1000):
-        results = run_simulation(parameters_list[i])
-        min_val = min(min_val, sum(results))
-        print(i, results, sum(results), min_val)
-    print(time()-start_time)
+    for i in range(100):
+        results = run_simulation(parameters_list[i], model)
+        total_error += results[-1]
+        print(i, results)
+        #break
+    print(total_error / 100.0)
+    #print(time()-start_time)

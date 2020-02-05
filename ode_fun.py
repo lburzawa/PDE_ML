@@ -40,25 +40,25 @@ def set_ode_fun(parameters):
         diff = np.correlate(Chd, kernel, 'same')
         diff[0] += Chd[1]
         diff[-1] += Chd[-2]
-        dChddt = parameters.D_Chd * diff - BMP_Chd_merge + BMPChd_split - parameters.dec_Chd * Chd + eta_Chd \
+        dChddt = parameters.D_Chd * diff / parameters.dx2 - BMP_Chd_merge + BMPChd_split - parameters.dec_Chd * Chd + eta_Chd \
                     - lambda_Tld_Chd_space - lambda_bmp1a_Chd_space
         diff = np.correlate(Nog, kernel, 'same')
         diff[0] += Nog[1]
         diff[-1] += Nog[-2]
-        dNogdt = parameters.D_Nog * diff - BMP_Nog_merge + BMPNog_split - parameters.dec_Nog * Nog + eta_Nog
+        dNogdt = parameters.D_Nog * diff / parameters.dx2 - BMP_Nog_merge + BMPNog_split - parameters.dec_Nog * Nog + eta_Nog
         diff = np.correlate(Szd, kernel, 'same')
         diff[0] += Szd[1]
         diff[-1] += Szd[-2]
-        dSzddt = parameters.D_Szd * diff - parameters.dec_Szd * Szd + (parameters.Vs * BMP_pow_nu) / (parameters.k + BMP_pow_nu)
+        dSzddt = parameters.D_Szd * diff - parameters.dec_Szd * Szd + (parameters.Vs * BMP_pow_nu) / (parameters.k ** parameters.nu + BMP_pow_nu)
         diff = np.correlate(BMPChd, kernel, 'same')
         diff[0] += BMPChd[1]
         diff[-1] += BMPChd[-2]
-        dBMPChddt = parameters.D_BMPChd * diff + BMP_Chd_merge - BMPChd_split - parameters.dec_BMPChd * BMPChd \
+        dBMPChddt = parameters.D_BMPChd * diff / parameters.dx2 + BMP_Chd_merge - BMPChd_split - parameters.dec_BMPChd * BMPChd \
                        - lambda_Tld_BMPChd_space - lambda_bmp1a_BMPChd_space
         diff = np.correlate(BMPNog, kernel, 'same')
         diff[0] += BMPNog[1]
         diff[-1] += BMPNog[-2]
-        dBMPNogdt = parameters.D_BMPNog * diff + BMP_Nog_merge - BMPNog_split - parameters.dec_BMPNog * BMPNog
+        dBMPNogdt = parameters.D_BMPNog * diff / parameters.dx2 + BMP_Nog_merge - BMPNog_split - parameters.dec_BMPNog * BMPNog
 
         dydt = np.concatenate((dBMPdt, dChddt, dNogdt, dSzddt, dBMPChddt, dBMPNogdt), 0)
 

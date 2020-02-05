@@ -1,113 +1,153 @@
-import os
 import argparse
 import numpy as np
 from scipy.io import loadmat
-import torch
+import pandas as pd
+from pathlib import Path
+
 
 parser = argparse.ArgumentParser(description='Parsing simulation data')
 parser.add_argument('--input_dir', default='', type=str, help='path to input data')
 parser.add_argument('--output_dir', default='', type=str, help='path to output data')
 args = parser.parse_args()
 
-def normalize_data(data):
-    data = np.absolute(data)
-    data[abs(data) < 1e-5] = 1e-5
-    data = np.log10(data)
-    data /= 10.0
-    data = data.astype(np.float32)
-    data = torch.from_numpy(data)
-    return data
 
+def read_exp_data(exp_data, var_name):
+    exp_data = exp_data[var_name][0]
+    ref = (np.sort(exp_data)[-5:]).mean()
+    exp_data = exp_data[:16]
+    return exp_data, ref
+
+
+def calculate_error(sim_data, exp_data, ref_sim, ref_exp):
+    sim_data = sim_data * (ref_exp / ref_sim)
+    sim_data = sim_data[0:32:2]
+    error = np.sqrt(np.power(sim_data - exp_data, 2).mean()) / 61.9087
+    return error
+
+
+input_dir = Path(args.input_dir)
+output_dir = Path(args.output_dir)
 num_samples = 50000
-num_proteins = 6
-num_types = 8
-space_size = 36
-num_inputs = 23
-data_size = num_samples * num_types
-num_outputs = 6 * space_size
-para_grid = loadmat(os.path.join(args.input_dir, 'para_grid.mat'))['para_grid'][:num_samples]
-para_grid_jBC = loadmat(os.path.join(args.input_dir, 'para_grid_jBC.mat'))['para_grid_jBC'][:num_samples]
-k = loadmat(os.path.join(args.input_dir, 'para_grid_k.mat'))['k'].transpose()[:num_samples]
-para_grid_ki = loadmat(os.path.join(args.input_dir, 'para_grid_ki.mat'))['para_grid_ki'][:num_samples]
-input_data_WT = np.concatenate((para_grid, para_grid_jBC, k, para_grid_ki, 100.0 * np.ones((num_samples, 1), dtype=np.float64)), 1)
+num_mutations = 7  # number of mutations per sample
+num_inputs = 23  # how many parameters does the model have
+data_size = num_samples * num_mutations  # total size of data
+num_outputs = 36  # how many points in space for final protein distribution
+para_grid = loadmat(input_dir / 'para_grid.mat')['para_grid'][:num_samples]
+para_grid_jBC = loadmat(input_dir / 'para_grid_jBC.mat')['para_grid_jBC'][:num_samples]
+para_grid_k = loadmat(input_dir / 'para_grid_k.mat')['k'].transpose()[:num_samples]
+para_grid_ki = loadmat(input_dir / 'para_grid_ki.mat')['para_grid_ki'][:num_samples]
+Vs = 100.0 * np.ones((num_samples, 1), dtype=np.float64)  # one of the parameters used in simulations
+input_data_WT = np.concatenate((para_grid, para_grid_jBC, para_grid_k, para_grid_ki, Vs), 1)
 input_data = np.zeros((data_size, num_inputs), dtype=np.float64)
+output_vars = loadmat(input_dir / 'modeldata_0wto5w.mat')
+output_data = np.zeros((data_size, num_outputs), dtype=np.float64)
+error_data = np.zeros((data_size, 2), dtype=np.float64)
+BMP_keys = ['MBMP_WT', 'MBMP_CLF', 'MBMP_NLF', 'MBMP_ALF', 'MBMP_TLF', 'MBMP_TALF', 'MBMP_SLF']
+exp_data = loadmat('pSmad_WT_MT_new.mat')
+WT_exp, ref_exp = read_exp_data(exp_data, 'pWT_57')
+CLF_exp, _ = read_exp_data(exp_data, 'pCLF_57')
+ALF_exp, _ = read_exp_data(exp_data, 'pALF_57')
+TLF_exp, _ = read_exp_data(exp_data, 'pTLF_57')
+TALF_exp, _ = read_exp_data(exp_data, 'pTALF_57')
+SLF_exp, _ = read_exp_data(exp_data, 'pSLF_57')
+WT_sim = output_vars['MBMP_WT'].transpose()[:num_samples]
+CLF_sim = output_vars['MBMP_CLF'].transpose()[:num_samples]
+NLF_sim = output_vars['MBMP_NLF'].transpose()[:num_samples]
+ALF_sim = output_vars['MBMP_ALF'].transpose()[:num_samples]
+TLF_sim = output_vars['MBMP_TLF'].transpose()[:num_samples]
+TALF_sim = output_vars['MBMP_TALF'].transpose()[:num_samples]
+SLF_sim = output_vars['MBMP_SLF'].transpose()[:num_samples]
+mutation_list = [None] * data_size
+order = np.arange(num_samples)
+np.random.shuffle(order)
 
-output_vars = loadmat(os.path.join(args.input_dir, 'modeldata_0wto5w.mat'))
-output_data = np.zeros((data_size, space_size, num_proteins), dtype=np.float64)
-ignore_keys = ['__header__', '__version__', '__globals__', 'MBC_Ahet', 'MBMP_Ahet', 'MBN_Ahet', 'MChd_Ahet', 'MNog_Ahet', 'MSzd_Ahet'] 
-WT_keys = ['MBC_WT', 'MBMP_WT', 'MBN_WT', 'MChd_WT', 'MNog_WT', 'MSzd_WT']
-Chet_keys = ['MBC_Chet', 'MBMP_Chet', 'MBN_Chet', 'MChd_Chet', 'MNog_Chet', 'MSzd_Chet']
-CLF_keys = ['MBC_CLF', 'MBMP_CLF', 'MBN_CLF', 'MChd_CLF', 'MNog_CLF', 'MSzd_CLF']
-NLF_keys = ['MBC_NLF', 'MBMP_NLF', 'MBN_NLF', 'MChd_NLF', 'MNog_NLF', 'MSzd_NLF']
-ALF_keys = ['MBC_ALF', 'MBMP_ALF', 'MBN_ALF', 'MChd_ALF', 'MNog_ALF', 'MSzd_ALF']
-TLF_keys = ['MBC_TLF', 'MBMP_TLF', 'MBN_TLF', 'MChd_TLF', 'MNog_TLF', 'MSzd_TLF']
-TALF_keys = ['MBC_TALF', 'MBMP_TALF', 'MBN_TALF', 'MChd_TALF', 'MNog_TALF', 'MSzd_TALF']
-SLF_keys = ['MBC_SLF', 'MBMP_SLF', 'MBN_SLF', 'MChd_SLF', 'MNog_SLF', 'MSzd_SLF']
 
-i = 0
-input_data[i*num_samples : (i+1)*num_samples] = input_data_WT
-for key in WT_keys:
-    output_data[i*num_samples : (i+1)*num_samples, :, WT_keys.index(key)] = output_vars[key].transpose()[:num_samples]
-i = 1
-input_data_Chet = input_data_WT.copy()
-input_data_Chet[:, 18] *= 0.5
-input_data[i*num_samples : (i+1)*num_samples] = input_data_Chet
-for key in Chet_keys:
-    output_data[i*num_samples : (i+1)*num_samples, :, Chet_keys.index(key)] = output_vars[key].transpose()[:num_samples]
-i = 2
-input_data_CLF = input_data_WT.copy()
-input_data_CLF[:, 18] = 0.0
-input_data[i*num_samples : (i+1)*num_samples] = input_data_CLF
-for key in CLF_keys:
-    output_data[i*num_samples : (i+1)*num_samples, :, CLF_keys.index(key)] = output_vars[key].transpose()[:num_samples]
-i = 3
-input_data_NLF = input_data_WT.copy()
-input_data_NLF[:, 8] = 0.0
-input_data[i*num_samples : (i+1)*num_samples] = input_data_NLF
-for key in NLF_keys:
-    output_data[i*num_samples : (i+1)*num_samples, :, NLF_keys.index(key)] = output_vars[key].transpose()[:num_samples]
-i = 4
-input_data_ALF = input_data_WT.copy()
-input_data_ALF[:, 15] = 0.0
-input_data_ALF[:, 16] = 0.0
-input_data[i*num_samples : (i+1)*num_samples] = input_data_ALF
-for key in ALF_keys:
-    output_data[i*num_samples : (i+1)*num_samples, :, ALF_keys.index(key)] = output_vars[key].transpose()[:num_samples]
-i = 5
-input_data_TLF = input_data_WT.copy()
-input_data_TLF[:, 13] = 0.0
-input_data_TLF[:, 14] = 0.0
-input_data[i*num_samples : (i+1)*num_samples] = input_data_TLF
-for key in TLF_keys:
-    output_data[i*num_samples : (i+1)*num_samples, :, TLF_keys.index(key)] = output_vars[key].transpose()[:num_samples]
-i = 6
-input_data_TALF = input_data_WT.copy()
-input_data_TALF[:, 13] = 0.0
-input_data_TALF[:, 14] = 0.0
-input_data_TALF[:, 15] = 0.0
-input_data_TALF[:, 16] = 0.0
-input_data[i*num_samples : (i+1)*num_samples] = input_data_TALF
-for key in TALF_keys:
-    output_data[i*num_samples : (i+1)*num_samples, :, TALF_keys.index(key)] = output_vars[key].transpose()[:num_samples]
-i = 7
-input_data_SLF = input_data_WT.copy()
-input_data_SLF[:, 22] = 0.0
-input_data[i*num_samples : (i+1)*num_samples] = input_data_SLF
-for key in SLF_keys:
-    output_data[i*num_samples : (i+1)*num_samples, :, SLF_keys.index(key)] = output_vars[key].transpose()[:num_samples]
+for i in range(num_samples):
+    ind = order[i]
+    # WT data
+    inputs = input_data_WT[ind].copy()
+    outputs = WT_sim[ind]
+    ref_sim = (np.sort(outputs)[-5:]).mean()
+    error = calculate_error(outputs, WT_exp, ref_sim, ref_exp)
+    input_data[ind * num_mutations + 0] = inputs
+    output_data[ind * num_mutations + 0] = outputs
+    error_data[ind * num_mutations + 0, 0] = ref_sim
+    error_data[ind * num_mutations + 0, 1] = error
+    mutation_list[ind * num_mutations + 0] = 'WT'
+    # CLF data
+    inputs = input_data_WT[ind].copy()
+    inputs[18] = 0.0
+    outputs = CLF_sim[ind]
+    error = calculate_error(outputs, CLF_exp, ref_sim, ref_exp)
+    input_data[ind * num_mutations + 1] = inputs
+    output_data[ind * num_mutations + 1] = outputs
+    error_data[ind * num_mutations + 1, 0] = ref_sim
+    error_data[ind * num_mutations + 1, 1] = error
+    mutation_list[ind * num_mutations + 1] = 'CLF'
+    # NLF data
+    inputs = input_data_WT[ind].copy()
+    inputs[8] = 0.0
+    outputs = NLF_sim[ind]
+    error = calculate_error(outputs, WT_exp, ref_sim, ref_exp)
+    input_data[ind * num_mutations + 2] = inputs
+    output_data[ind * num_mutations + 2] = outputs
+    error_data[ind * num_mutations + 2, 0] = ref_sim
+    error_data[ind * num_mutations + 2, 1] = error
+    mutation_list[ind * num_mutations + 2] = 'NLF'
+    # ALF data
+    inputs = input_data_WT[ind].copy()
+    inputs[15] = 0.0
+    inputs[16] = 0.0
+    outputs = ALF_sim[ind]
+    error = calculate_error(outputs, ALF_exp, ref_sim, ref_exp)
+    input_data[ind * num_mutations + 3] = inputs
+    output_data[ind * num_mutations + 3] = outputs
+    error_data[ind * num_mutations + 3, 0] = ref_sim
+    error_data[ind * num_mutations + 3, 1] = error
+    mutation_list[ind * num_mutations + 3] = 'ALF'
+    # TLF data
+    inputs = input_data_WT[ind].copy()
+    inputs[13] = 0.0
+    inputs[14] = 0.0
+    outputs = TLF_sim[ind]
+    error = calculate_error(outputs, TLF_exp, ref_sim, ref_exp)
+    input_data[ind * num_mutations + 4] = inputs
+    output_data[ind * num_mutations + 4] = outputs
+    error_data[ind * num_mutations + 4, 0] = ref_sim
+    error_data[ind * num_mutations + 4, 1] = error
+    mutation_list[ind * num_mutations + 4] = 'TLF'
+    # TALF data
+    inputs = input_data_WT[ind].copy()
+    inputs[13] = 0.0
+    inputs[14] = 0.0
+    inputs[15] = 0.0
+    inputs[16] = 0.0
+    outputs = TALF_sim[ind]
+    error = calculate_error(outputs, TALF_exp, ref_sim, ref_exp)
+    input_data[ind * num_mutations + 5] = inputs
+    output_data[ind * num_mutations + 5] = outputs
+    error_data[ind * num_mutations + 5, 0] = ref_sim
+    error_data[ind * num_mutations + 5, 1] = error
+    mutation_list[ind * num_mutations + 5] = 'TALF'
+    # SLF data
+    inputs = input_data_WT[ind].copy()
+    inputs[22] = 0.0
+    outputs = SLF_sim[ind]
+    error = calculate_error(outputs, SLF_exp, ref_sim, ref_exp)
+    input_data[ind * num_mutations + 6] = inputs
+    output_data[ind * num_mutations + 6] = outputs
+    error_data[ind * num_mutations + 6, 0] = ref_sim
+    error_data[ind * num_mutations + 6, 1] = error
+    mutation_list[ind * num_mutations + 6] = 'SLF'
 
-input_data = normalize_data(input_data)
-output_data = normalize_data(output_data)
-ind = torch.randperm(data_size)
-input_data = input_data[ind]
-output_data = output_data[ind]
-train_size = int(0.9 * data_size)
-train_data_input = input_data[:train_size].clone()
-train_data_output = output_data[:train_size].clone()
-val_data_input = input_data[train_size:].clone()
-val_data_output = output_data[train_size:].clone()
-torch.save(train_data_input, os.path.join(args.output_dir, 'train_input.pth'))
-torch.save(train_data_output, os.path.join(args.output_dir, 'train_output.pth'))
-torch.save(val_data_input, os.path.join(args.output_dir, 'val_input.pth'))
-torch.save(val_data_output, os.path.join(args.output_dir, 'val_output.pth'))
 
+data = np.concatenate((input_data, output_data, error_data), 1)
+print(output_data.min())
+data = pd.DataFrame(data)
+data[num_inputs + num_outputs + 2] = mutation_list
+#data = data.sample(frac=1)
+train_size = int(0.9 * num_samples)
+train_data = data[:train_size * num_mutations]
+val_data = data[train_size * num_mutations:]
+train_data.to_csv(output_dir / 'train_data.csv', header=False, index=False)
+val_data.to_csv(output_dir / 'val_data.csv', header=False, index=False)
