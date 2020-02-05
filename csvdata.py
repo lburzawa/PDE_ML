@@ -22,8 +22,8 @@ class CSVdata(data.Dataset):
         data = pd.read_csv(data_path, header=None)
         self.mutation_list = data.iloc[:, -1]
         data = data.iloc[:, :-1].to_numpy()
-        self.error_data = torch.from_numpy(data[:, self.num_inputs + self.num_outputs:])
-        data = data[:, :-2]
+        self.error_data = torch.from_numpy(data[:, -1])
+        data = data[:, :-1]
         data = normalize_data(data)
         self.input_data = data[:, :self.num_inputs].clone()
         self.output_data = data[:, self.num_inputs : self.num_inputs + self.num_outputs].clone()

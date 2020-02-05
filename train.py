@@ -15,8 +15,8 @@ import torch.utils.data
 from csvdata import CSVdata
 from model_lstm import ModelLSTM
 from model_simple import ModelSimple
-#from solver import run_simulation
-#from solver import inputs2parameters
+from solver import run_simulation
+from solver import inputs2parameters
 from pathlib import Path
 from scipy.io import loadmat
 
@@ -86,7 +86,7 @@ def main():
     sstot_train = train_dataset.sstot
     sstot_val = val_dataset.sstot
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.workers, pin_memory=True)
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.workers, pin_memory=True)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=280, shuffle=False, num_workers=args.workers, pin_memory=True)
 
     if args.evaluate:
         validate(val_loader, model, criterion, -1, sstot_val, best_score, args)
@@ -177,13 +177,16 @@ def read_exp_data(exp_data, var_name):
 
 
 def calculate_error(exp_data, nn_data, ref_exp, target_error, mutation_type):
+    num_mutations = 7
     sim_error = 0.0
     for i in range(nn_data.size(0)):
-        ref_sim = target_error[i, 0].item()
-        target = target_error[i, 1].item()
+        target = target_error[i].item()
         nn_output = nn_data[i].detach().cpu().numpy()
+        nn_output = np.power(10.0, (10.0 * nn_output))
+        #nn_output = 1000.0 * nn_output
+        if i % num_mutations == 0:
+            ref_sim = (np.sort(nn_output)[-5:]).mean()
         nn_output = nn_output[0:32:2]
-        nn_output = 10.0 ** (10.0 * nn_output)
         nn_output *= ref_exp / ref_sim
         error = np.sqrt(np.power(nn_output - exp_data[mutation_type[i]], 2).mean()) / 61.9087
         sim_error += 100.0 * abs(error - target) / target
@@ -258,11 +261,12 @@ def validate(val_loader, model, criterion, epoch, sstot, best_score, args):
                 progress.display(i+1)
                 #output = output.view(output.size(0), 36, 6)
                 #target = target.view(target.size(0), 36, 6)
-                #print(10 ** (10.0 * inputs[16]))
+                print(10 ** (10.0 * inputs[16]))
                 #print(10 ** (10.0 * target[16, :, 1]))
-                #print(10 ** (10.0 * output[16, :, 1]))
-                #parameters = inputs2parameters(inputs[16])
-                #results = run_simulation(parameters, model)
+
+                print(10 ** (10.0 * target[7]))
+                parameters = inputs2parameters(inputs[7])
+                results = run_simulation(parameters, model)
                 #print(results)
                 #print('---')
 

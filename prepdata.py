@@ -41,7 +41,7 @@ input_data_WT = np.concatenate((para_grid, para_grid_jBC, para_grid_k, para_grid
 input_data = np.zeros((data_size, num_inputs), dtype=np.float64)
 output_vars = loadmat(input_dir / 'modeldata_0wto5w.mat')
 output_data = np.zeros((data_size, num_outputs), dtype=np.float64)
-error_data = np.zeros((data_size, 2), dtype=np.float64)
+error_data = np.zeros((data_size, 1), dtype=np.float64)
 BMP_keys = ['MBMP_WT', 'MBMP_CLF', 'MBMP_NLF', 'MBMP_ALF', 'MBMP_TLF', 'MBMP_TALF', 'MBMP_SLF']
 exp_data = loadmat('pSmad_WT_MT_new.mat')
 WT_exp, ref_exp = read_exp_data(exp_data, 'pWT_57')
@@ -71,8 +71,7 @@ for i in range(num_samples):
     error = calculate_error(outputs, WT_exp, ref_sim, ref_exp)
     input_data[ind * num_mutations + 0] = inputs
     output_data[ind * num_mutations + 0] = outputs
-    error_data[ind * num_mutations + 0, 0] = ref_sim
-    error_data[ind * num_mutations + 0, 1] = error
+    error_data[ind * num_mutations + 0, 0] = error
     mutation_list[ind * num_mutations + 0] = 'WT'
     # CLF data
     inputs = input_data_WT[ind].copy()
@@ -81,8 +80,7 @@ for i in range(num_samples):
     error = calculate_error(outputs, CLF_exp, ref_sim, ref_exp)
     input_data[ind * num_mutations + 1] = inputs
     output_data[ind * num_mutations + 1] = outputs
-    error_data[ind * num_mutations + 1, 0] = ref_sim
-    error_data[ind * num_mutations + 1, 1] = error
+    error_data[ind * num_mutations + 1, 0] = error
     mutation_list[ind * num_mutations + 1] = 'CLF'
     # NLF data
     inputs = input_data_WT[ind].copy()
@@ -91,8 +89,7 @@ for i in range(num_samples):
     error = calculate_error(outputs, WT_exp, ref_sim, ref_exp)
     input_data[ind * num_mutations + 2] = inputs
     output_data[ind * num_mutations + 2] = outputs
-    error_data[ind * num_mutations + 2, 0] = ref_sim
-    error_data[ind * num_mutations + 2, 1] = error
+    error_data[ind * num_mutations + 2, 0] = error
     mutation_list[ind * num_mutations + 2] = 'NLF'
     # ALF data
     inputs = input_data_WT[ind].copy()
@@ -102,8 +99,7 @@ for i in range(num_samples):
     error = calculate_error(outputs, ALF_exp, ref_sim, ref_exp)
     input_data[ind * num_mutations + 3] = inputs
     output_data[ind * num_mutations + 3] = outputs
-    error_data[ind * num_mutations + 3, 0] = ref_sim
-    error_data[ind * num_mutations + 3, 1] = error
+    error_data[ind * num_mutations + 3, 0] = error
     mutation_list[ind * num_mutations + 3] = 'ALF'
     # TLF data
     inputs = input_data_WT[ind].copy()
@@ -113,8 +109,7 @@ for i in range(num_samples):
     error = calculate_error(outputs, TLF_exp, ref_sim, ref_exp)
     input_data[ind * num_mutations + 4] = inputs
     output_data[ind * num_mutations + 4] = outputs
-    error_data[ind * num_mutations + 4, 0] = ref_sim
-    error_data[ind * num_mutations + 4, 1] = error
+    error_data[ind * num_mutations + 4, 0] = error
     mutation_list[ind * num_mutations + 4] = 'TLF'
     # TALF data
     inputs = input_data_WT[ind].copy()
@@ -126,8 +121,7 @@ for i in range(num_samples):
     error = calculate_error(outputs, TALF_exp, ref_sim, ref_exp)
     input_data[ind * num_mutations + 5] = inputs
     output_data[ind * num_mutations + 5] = outputs
-    error_data[ind * num_mutations + 5, 0] = ref_sim
-    error_data[ind * num_mutations + 5, 1] = error
+    error_data[ind * num_mutations + 5, 0] = error
     mutation_list[ind * num_mutations + 5] = 'TALF'
     # SLF data
     inputs = input_data_WT[ind].copy()
@@ -136,15 +130,14 @@ for i in range(num_samples):
     error = calculate_error(outputs, SLF_exp, ref_sim, ref_exp)
     input_data[ind * num_mutations + 6] = inputs
     output_data[ind * num_mutations + 6] = outputs
-    error_data[ind * num_mutations + 6, 0] = ref_sim
-    error_data[ind * num_mutations + 6, 1] = error
+    error_data[ind * num_mutations + 6, 0] = error
     mutation_list[ind * num_mutations + 6] = 'SLF'
 
 
 data = np.concatenate((input_data, output_data, error_data), 1)
 print(output_data.min())
 data = pd.DataFrame(data)
-data[num_inputs + num_outputs + 2] = mutation_list
+data[num_inputs + num_outputs + 1] = mutation_list
 #data = data.sample(frac=1)
 train_size = int(0.9 * num_samples)
 train_data = data[:train_size * num_mutations]
