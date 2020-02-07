@@ -17,7 +17,7 @@ def normalize_data(data):
 class CSVdata(data.Dataset):
 
     def __init__(self, data_path):
-        self.num_inputs = 23
+        self.num_inputs = 22
         self.num_outputs = 36
         data = pd.read_csv(data_path, header=None)
         self.mutation_list = data.iloc[:, -1]

@@ -28,6 +28,7 @@ class Parameters:
         self.ALF_exp, self.ALF_ref_exp = read_exp_data(exp_data, 'pALF_57')
         self.TLF_exp, self.TLF_ref_exp = read_exp_data(exp_data, 'pTLF_57')
         self.TALF_exp, _ = read_exp_data(exp_data, 'pTALF_57')
+        self.SLF_exp, _ = read_exp_data(exp_data, 'pSLF_57')
         self.num_proteins = 6
         self.n = 36  # number of nodes to evaluate finite difference equations
         self.T = 7900.0  # how many time steps to use in PDE solution
@@ -44,9 +45,9 @@ class Parameters:
         self.dec_Chd = 9.6e-5  # decay rate of Chordin
         self.nu = 4.0  # cooperative parameter
         self.Vs = 100.0
-        self.kit = 1500  # para_grid_ki[0]  # inhibitor constant of proteinase Tolloid
-        self.kia = 1961  # para_grid_ki[1]  # inhibitor constant of proteinase bmp1a
-        self.k = 635  # parameter for hill function
+        self.kit = 123  # para_grid_ki[0]  # inhibitor constant of proteinase Tolloid
+        self.kia = 26  # para_grid_ki[1]  # inhibitor constant of proteinase bmp1a
+        self.k = 1652  # parameter for hill function
         self.ndor_Chd = round(self.Ldor_Chd * self.n / self.Ltot)
         self.ndor_Nog = round(self.Ldor_Nog * self.n / self.Ltot)
         x_lig = np.arange(0.0, self.Ltot + dx / 2, dx)
@@ -99,13 +100,6 @@ def set_continuous_parameters(parameters):
         parameters.j2 = 10 ** uniform(-2.0, 1.0)
         if parameters.j2 > parameters.j1:
             break
-    data = pd.read_csv('/home/lburzawa/datasets/pde/train_data.csv', header=None)
-    ind = np.random.randint(0, 5000)
-    #print(data.iloc[ind * 7])
-    parameters.k = data.iloc[ind * 7, 19]
-    parameters.kit = data.iloc[ind * 7, 20]
-    parameters.kia = data.iloc[ind * 7, 21]
-    #print(parameters.k, parameters.kit, parameters.kia)
 
 
 def set_discrete_parameters(parameters):
@@ -133,6 +127,39 @@ def set_discrete_parameters(parameters):
         parameters.j2 = 10 ** crandint(-2, 1)
         if parameters.j2 > parameters.j1:
             break
+
+
+def read_from_file(parameters, path):
+    data = pd.read_csv(path, header=None)
+    data = data.iloc[:, :23].to_numpy()
+    ind = np.random.randint(0, 10000)
+    ind2 = np.random.randint(0, 10000)
+    #data = data[ind * 7]
+    parameters.D_Nog = data[ind*7, 0]
+    parameters.D_BMPChd = data[ind*7, 1]
+    parameters.D_BMPNog = data[ind*7, 2]
+    parameters.D_Chd = data[ind*7, 3]
+    parameters.dec_Nog = data[ind*7, 4]
+    parameters.dec_Szd = data[ind*7, 5]
+    parameters.dec_BMPChd = data[ind*7, 6]
+    parameters.dec_BMPNog = data[ind*7, 7]
+    parameters.j3 = data[ind*7, 8]
+    parameters.k1 = data[ind*7, 9]
+    parameters.k_1 = parameters.k1
+    parameters.k2 = data[ind*7, 10]
+    parameters.k_2 = 0.1 * parameters.k2
+    parameters.kmt = data[ind*7, 11]
+    parameters.kma = data[ind*7, 12]
+    parameters.lambda_Tld_Chd = data[ind*7, 13]
+    parameters.lambda_Tld_BMPChd = data[ind*7, 14]
+    parameters.lambda_bmp1a_Chd = data[ind*7, 15]
+    parameters.lambda_bmp1a_BMPChd = data[ind*7, 16]
+    parameters.j1 = data[ind*7, 17]
+    parameters.j2 = data[ind*7, 18]
+    parameters.k = data[ind*7, 19]
+    parameters.kit = data[ind*7, 20]
+    parameters.kia = data[ind*7, 21]
+    #parameters.Vs = data[22]
 
 
 def normalize_inputs(data):
@@ -164,7 +191,7 @@ def prepare_inputs(parameters):
     inputs[16] = parameters.lambda_bmp1a_BMPChd
     inputs[17] = parameters.j1
     inputs[18] = parameters.j2
-    inputs[19] = parameters.k
+    inputs[19] = 0.0 #parameters.k
     inputs[20] = parameters.kit
     inputs[21] = parameters.kia
     inputs[22] = parameters.Vs
@@ -210,7 +237,7 @@ def solve_pde(parameters, ref_exp, ref_sim):
     fun = set_ode_fun(parameters)
     sol = solve_ivp(fun, parameters.tspan, parameters.init, method='BDF', rtol=1e-9)
     BMP = sol.y[:36, -1]
-    print(BMP)
+    #print(BMP)
     #print(np.log10(BMP)/10.0)
     if ref_sim is None:
         ref_sim = (np.sort(BMP)[-5:]).mean()
@@ -302,12 +329,22 @@ def run_simulation(parameters, model):
     parameters.lambda_bmp1a_BMPChd = lambda_bmp1a_BMPChd
     parameters.lambda_Tld_Chd = lambda_Tld_Chd
     parameters.lambda_Tld_BMPChd = lambda_Tld_BMPChd
+    # SLF simulation
+    Vs = parameters.Vs
+    parameters.Vs = 0.0
+    SLF_sim, _ = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
+    SLF_nn, _ = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
+    SLF_nrmse = np.sqrt(np.power(SLF_sim - parameters.SLF_exp, 2).mean()) / 61.9087
+    SLF_nrmse_nn = np.sqrt(np.power(SLF_nn - parameters.SLF_exp, 2).mean()) / 61.9087
+    SLF_error = 100.0 * abs(SLF_nrmse - SLF_nrmse_nn) / SLF_nrmse
+    parameters.Vs = Vs
 
-    #total_error = (WT_error + CLF_error + NLF_error + ALF_error + TLF_error + TALF_error) / 6.0
+
+    total_error = (WT_error + CLF_error + NLF_error + ALF_error + TLF_error + TALF_error + SLF_error) / 6.0
     
     #return [[WT_nrmse, WT_nrmse_nn], [CLF_nrmse, CLF_nrmse_nn], [NLF_nrmse, NLF_nrmse_nn], [ALF_nrmse, ALF_nrmse_nn],
     #        [TLF_nrmse, TLF_nrmse_nn], [TALF_nrmse, TALF_nrmse_nn], total_error]
-    return #[WT_error, CLF_error, NLF_error, ALF_error, TLF_error, TALF_error, total_error]
+    return [WT_error, CLF_error, NLF_error, ALF_error, TLF_error, TALF_error, SLF_error, total_error]
 
 if __name__ == '__main__':
     #random.seed(0)
@@ -318,21 +355,23 @@ if __name__ == '__main__':
     print("=> loading checkpoint '{}'".format(model_path))
     checkpoint = torch.load(model_path)
     best_score = checkpoint['best_score']
+    print(best_score)
     model.load_state_dict(checkpoint['state_dict'])
     print("=> loaded checkpoint '{}' (epoch {})".format(model_path, checkpoint['epoch']))
 
     parameters_list = []
     min_val = 1.0
     total_error = 0.0
-    for i in range(50):
+    for i in range(10):
         parameters = Parameters()
+        read_from_file(parameters, '../../../datasets/pde/val_data.csv')
         set_continuous_parameters(parameters)
         parameters_list.append(parameters)
     start_time = time()
-    for i in range(50):
+    for i in range(10):
         results = run_simulation(parameters_list[i], model)
         total_error += results[-1]
         print(i, results)
         #break
-    print(total_error / 50.0)
+    print(total_error / 10.0)
     #print(time()-start_time)

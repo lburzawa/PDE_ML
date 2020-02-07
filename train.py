@@ -58,7 +58,7 @@ def main():
     model = model.cuda(args.gpu)
 
     # define loss function (criterion) and optimizer
-    criterion = nn.MSELoss().cuda(args.gpu)
+    criterion = nn.L1Loss().cuda(args.gpu)
 
     #optimizer = torch.optim.SGD(model.parameters(), args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
     optimizer = torch.optim.Adam(model.parameters(), args.lr)
@@ -261,11 +261,11 @@ def validate(val_loader, model, criterion, epoch, sstot, best_score, args):
                 progress.display(i+1)
                 #output = output.view(output.size(0), 36, 6)
                 #target = target.view(target.size(0), 36, 6)
-                print(10 ** (10.0 * inputs[16]))
+                print(10 ** (10.0 * inputs[12]))
                 #print(10 ** (10.0 * target[16, :, 1]))
 
-                print(10 ** (10.0 * target[7]))
-                parameters = inputs2parameters(inputs[7])
+                print(10 ** (10.0 * target[12]))
+                parameters = inputs2parameters(inputs[12])
                 results = run_simulation(parameters, model)
                 #print(results)
                 #print('---')
