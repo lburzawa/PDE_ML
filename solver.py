@@ -45,9 +45,9 @@ class Parameters:
         self.dec_Chd = 9.6e-5  # decay rate of Chordin
         self.nu = 4.0  # cooperative parameter
         self.Vs = 100.0
-        self.kit = 123  # para_grid_ki[0]  # inhibitor constant of proteinase Tolloid
-        self.kia = 26  # para_grid_ki[1]  # inhibitor constant of proteinase bmp1a
-        self.k = 1652  # parameter for hill function
+        self.kit = 510.7204  # para_grid_ki[0]  # inhibitor constant of proteinase Tolloid
+        self.kia = 550.5586  # para_grid_ki[1]  # inhibitor constant of proteinase bmp1a
+        self.k = 25.8752  # parameter for hill function
         self.ndor_Chd = round(self.Ldor_Chd * self.n / self.Ltot)
         self.ndor_Nog = round(self.Ldor_Nog * self.n / self.Ltot)
         x_lig = np.arange(0.0, self.Ltot + dx / 2, dx)
@@ -73,7 +73,7 @@ def read_exp_data(exp_data, var_name):
     return exp_data, ref
 
 def crandint(min_val, max_val):
-    return (max_val - min_val) * (randint(0, 15)/15.0) + min_val
+    return (max_val - min_val) * (randint(0, 31)/31.0) + min_val
 
 def set_continuous_parameters(parameters):
     parameters.D_Nog = (10 ** uniform(-2.0, 2.0))
@@ -103,10 +103,10 @@ def set_continuous_parameters(parameters):
 
 
 def set_discrete_parameters(parameters):
-    parameters.D_Nog = (10 ** crandint(-2, 2)) / parameters.dx2
-    parameters.D_BMPChd = (10 ** crandint(-2, 2)) / parameters.dx2
-    parameters.D_BMPNog = (10 ** crandint(-2, 2)) / parameters.dx2
-    parameters.D_Chd = 0.5 * (10 ** crandint(0, 2)) / parameters.dx2
+    parameters.D_Nog = (10 ** crandint(-2, 2))
+    parameters.D_BMPChd = (10 ** crandint(-2, 2))
+    parameters.D_BMPNog = (10 ** crandint(-2, 2))
+    parameters.D_Chd = 0.5 * (10 ** crandint(0, 2))
     parameters.dec_Nog = 10 ** crandint(-5, -1)
     parameters.dec_Szd = 10 ** crandint(-5, -1)
     parameters.dec_BMPChd = 10 ** crandint(-5, -3)
@@ -171,7 +171,7 @@ def normalize_inputs(data):
 
 
 def prepare_inputs(parameters):
-    inputs = torch.zeros(23)
+    inputs = torch.zeros(22)
     inputs[0] = parameters.D_Nog
     inputs[1] = parameters.D_BMPChd
     inputs[2] = parameters.D_BMPNog
@@ -191,10 +191,10 @@ def prepare_inputs(parameters):
     inputs[16] = parameters.lambda_bmp1a_BMPChd
     inputs[17] = parameters.j1
     inputs[18] = parameters.j2
-    inputs[19] = 0.0 #parameters.k
+    inputs[19] = parameters.Vs
     inputs[20] = parameters.kit
     inputs[21] = parameters.kia
-    inputs[22] = parameters.Vs
+    #inputs[21] = parameters.Vs
     #print(inputs)
     inputs = inputs.unsqueeze(0)
     inputs = normalize_inputs(inputs)
@@ -267,8 +267,6 @@ def run_simulation(parameters, model):
     WT_nrmse = np.sqrt(np.power(WT_sim - parameters.WT_exp, 2).mean()) / 61.9087
     WT_nrmse_nn = np.sqrt(np.power(WT_nn - parameters.WT_exp, 2).mean()) / 61.9087
     WT_error = 100.0 * abs(WT_nrmse - WT_nrmse_nn) / WT_nrmse
-    #print(WT_sim)
-    #print(WT_nn)
     # CLF simulation
     j2 = parameters.j2
     parameters.j2 = 0.0
@@ -339,8 +337,7 @@ def run_simulation(parameters, model):
     SLF_error = 100.0 * abs(SLF_nrmse - SLF_nrmse_nn) / SLF_nrmse
     parameters.Vs = Vs
 
-
-    total_error = (WT_error + CLF_error + NLF_error + ALF_error + TLF_error + TALF_error + SLF_error) / 6.0
+    total_error = (WT_error + CLF_error + NLF_error + ALF_error + TLF_error + TALF_error + SLF_error) / 7.0
     
     #return [[WT_nrmse, WT_nrmse_nn], [CLF_nrmse, CLF_nrmse_nn], [NLF_nrmse, NLF_nrmse_nn], [ALF_nrmse, ALF_nrmse_nn],
     #        [TLF_nrmse, TLF_nrmse_nn], [TALF_nrmse, TALF_nrmse_nn], total_error]
@@ -364,8 +361,8 @@ if __name__ == '__main__':
     total_error = 0.0
     for i in range(10):
         parameters = Parameters()
-        read_from_file(parameters, '../../../datasets/pde/val_data.csv')
-        set_continuous_parameters(parameters)
+        #read_from_file(parameters, '../../../datasets/pde/val_data.csv')
+        set_discrete_parameters(parameters)
         parameters_list.append(parameters)
     start_time = time()
     for i in range(10):

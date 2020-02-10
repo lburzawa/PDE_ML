@@ -22,11 +22,12 @@ class CSVdata(data.Dataset):
         data = pd.read_csv(data_path, header=None)
         self.mutation_list = data.iloc[:, -1]
         data = data.iloc[:, :-1].to_numpy()
+        #data[:, 22] = 0.0
         self.error_data = torch.from_numpy(data[:, -1])
         data = data[:, :-1]
         data = normalize_data(data)
         self.input_data = data[:, :self.num_inputs].clone()
-        self.output_data = data[:, self.num_inputs : self.num_inputs + self.num_outputs].clone()
+        self.output_data = data[:, self.num_inputs + 1 : self.num_inputs + 1 + self.num_outputs].clone()
 
         self.sstot = (self.output_data - self.output_data.mean()).pow(2).sum().item()
         #print(output_data.mean())

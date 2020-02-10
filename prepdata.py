@@ -27,18 +27,19 @@ def calculate_error(sim_data, exp_data, ref_sim, ref_exp):
 
 input_dir = Path(args.input_dir)
 output_dir = Path(args.output_dir)
-files = ['1to5w/modeldata_0wto5w.mat', '5wto10w/modeldata_5wto10w.mat', '10wto15w/modeldata_10wto15w.mat', '15wto20w/modeldata_15wto20w.mat']
+files = ['1to5w/modeldata_0wto5w.mat', '5wto10w/modeldata_5wto10w.mat', '10wto15w/modeldata_10wto15w.mat', '15wto20w/modeldata_15wto20w.mat',
+         '20wto25w/modeldata_20wto25w.mat', '25wto30w/modeldata_25wto30w.mat']
 num_samples = 50000
 num_mutations = 7  # number of mutations per sample
-num_inputs = 22  # how many parameters does the model have
+num_inputs = 23  # how many parameters does the model have
 data_size = len(files) * num_samples * num_mutations  # total size of data
 num_outputs = 36  # how many points in space for final protein distribution
 para_grid = loadmat(input_dir / '1to5w' / 'para_grid.mat')['para_grid'][:len(files) * num_samples]
 para_grid_jBC = loadmat(input_dir / '1to5w' / 'para_grid_jBC.mat')['para_grid_jBC'][:len(files) * num_samples]
-#para_grid_k = loadmat(input_dir / 'para_grid_k.mat')['k'].transpose()[50000:50000+num_samples]
+para_grid_k = loadmat(input_dir / '1to5w' / 'para_grid_k.mat')['k'].transpose()[:len(files) * num_samples]
 para_grid_ki = loadmat(input_dir / '1to5w' / 'para_grid_ki.mat')['para_grid_ki'][:len(files) * num_samples]
 Vs = 100.0 * np.ones((len(files) * num_samples, 1), dtype=np.float64)  # one of the parameters used in simulations
-input_data_WT = np.concatenate((para_grid, para_grid_jBC, para_grid_ki, Vs), 1)
+input_data_WT = np.concatenate((para_grid, para_grid_jBC, Vs, para_grid_ki, para_grid_k), 1)
 input_data = np.zeros((data_size, num_inputs), dtype=np.float64)
 output_data = np.zeros((data_size, num_outputs), dtype=np.float64)
 error_data = np.zeros((data_size, 1), dtype=np.float64)
@@ -128,7 +129,7 @@ for j in range(len(files)):
         mutation_list[ind * num_mutations + 5] = 'TALF'
         # SLF data
         inputs = input_data_WT[j*num_samples+i].copy()
-        inputs[21] = 0.0
+        inputs[19] = 0.0
         outputs = SLF_sim[i]
         error = calculate_error(outputs, SLF_exp, ref_sim, ref_exp)
         input_data[ind * num_mutations + 6] = inputs
