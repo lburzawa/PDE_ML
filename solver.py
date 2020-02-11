@@ -55,6 +55,27 @@ class Parameters:
         self.init = np.zeros((self.num_proteins * self.n,), dtype=np.float64)
         self.tspan = (0.0, self.T)
 
+    def __str__(self):
+        info = ''
+        info += 'D_Nog' + ' ' + str(self.D_Nog) + ' ' + 'range [0.01, 100] ' + '\n'
+        info += 'D_BMPChd' + ' ' + str(self.D_BMPChd) + ' ' + 'range [0.01, 100]' + '\n'
+        info += 'D_BMPNog' + ' ' + str(self.D_BMPNog) + ' ' + 'range [0.01, 100]' + '\n'
+        info += 'D_Chd' + ' ' + str(self.D_Chd) + ' ' + 'range [0.5, 50]' + '\n'
+        info += 'dec_Nog' + ' ' + str(self.dec_Nog) + ' ' + 'range [1e-5, 1e-1]' + '\n'
+        info += 'dec_Szd' + ' ' + str(self.dec_Szd) + ' ' + 'range [1e-5, 1e-1]' + '\n'
+        info += 'dec_BMPChd' + ' ' + str(self.dec_BMPChd) + ' ' + 'range [1e-5, 1e-3]' + '\n'
+        info += 'dec_BMPNog' + ' ' + str(self.dec_BMPNog) + ' ' + 'range [1e-5, 1e-3]' + '\n'
+        info += 'j3' + ' ' + str(self.j3) + ' ' + 'range [0.01, 100]' + '\n'
+        info += 'k1' + ' ' + str(self.k1) + ' ' + 'range [1e-4, 1]' + '\n'
+        info += 'k2' + ' ' + str(self.k2) + ' ' + 'range [1e-4, 1]' + '\n'
+        info += 'kmt' + ' ' + str(self.kmt) + ' ' + 'range [1, 100]' + '\n'
+        info += 'kma' + ' ' + str(self.kma) + ' ' + 'range [1, 100]' + '\n'
+        info += 'lambda_Tld_Chd' + ' ' + str(self.lambda_Tld_Chd) + ' ' + 'range [1e-4, 1]' + '\n'
+        info += 'lambda_Tld_BMPChd' + ' ' + str(self.lambda_Tld_BMPChd) + ' ' + 'range [1e-4, 1]' + '\n'
+        info += 'lambda_bmp1a_Chd' + ' ' + str(self.lambda_bmp1a_Chd) + ' ' + 'range [1e-4, 1]' + '\n'
+        info += 'lambda_bmp1a_BMPChd' + ' ' + str(self.lambda_bmp1a_BMPChd) + ' ' + 'range [1e-4, 1]' + '\n'
+        return info
+
 
 '''
 def read_parameters(i):
@@ -226,10 +247,10 @@ def inputs2parameters(inputs):
     parameters.lambda_bmp1a_BMPChd = inputs[16]
     parameters.j1 = inputs[17]
     parameters.j2 = inputs[18]
-    parameters.k = inputs[19]
+    parameters.Vs = inputs[19]
     parameters.kit = inputs[20]
     parameters.kia = inputs[21]
-    parameters.Vs = inputs[22]
+    #parameters.Vs = inputs[22]
     return parameters
 
 
@@ -260,88 +281,100 @@ def solve_pde_nn(parameters, ref_exp, ref_nn, model):
     return BMP, ref_nn
 
 
-def run_simulation(parameters, model):
-    # WT simulation
-    WT_sim, ref_sim = solve_pde(parameters, parameters.WT_ref_exp, None)
-    WT_nn, ref_nn = solve_pde_nn(parameters, parameters.WT_ref_exp, None, model)
-    WT_nrmse = np.sqrt(np.power(WT_sim - parameters.WT_exp, 2).mean()) / 61.9087
-    WT_nrmse_nn = np.sqrt(np.power(WT_nn - parameters.WT_exp, 2).mean()) / 61.9087
-    WT_error = 100.0 * abs(WT_nrmse - WT_nrmse_nn) / WT_nrmse
-    # CLF simulation
-    j2 = parameters.j2
-    parameters.j2 = 0.0
-    CLF_sim, _ = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
-    CLF_nn, _ = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
-    CLF_nrmse = np.sqrt(np.power(CLF_sim - parameters.CLF_exp, 2).mean()) / 61.9087
-    CLF_nrmse_nn = np.sqrt(np.power(CLF_nn - parameters.CLF_exp, 2).mean()) / 61.9087
-    CLF_error = 100.0 * abs(CLF_nrmse - CLF_nrmse_nn) / CLF_nrmse
-    parameters.j2 = j2
-    # NLF simulation
-    j3 = parameters.j3
-    parameters.j3 = 0.0
-    NLF_sim, _ = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
-    NLF_nn, _ = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
-    NLF_nrmse = np.sqrt(np.power(NLF_sim - parameters.WT_exp, 2).mean()) / 61.9087
-    NLF_nrmse_nn = np.sqrt(np.power(NLF_nn - parameters.WT_exp, 2).mean()) / 61.9087
-    NLF_error = 100.0 * abs(NLF_nrmse - NLF_nrmse_nn) / NLF_nrmse
-    parameters.j3 = j3
-    # ALF simulation
-    lambda_bmp1a_Chd = parameters.lambda_bmp1a_Chd
-    lambda_bmp1a_BMPChd = parameters.lambda_bmp1a_BMPChd
-    parameters.lambda_bmp1a_Chd = 0.0
-    parameters.lambda_bmp1a_BMPChd = 0.0
-    ALF_sim, _ = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
-    ALF_nn, _ = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
-    ALF_nrmse = np.sqrt(np.power(ALF_sim - parameters.ALF_exp, 2).mean()) / 61.9087
-    ALF_nrmse_nn = np.sqrt(np.power(ALF_nn - parameters.ALF_exp, 2).mean()) / 61.9087
-    ALF_error = 100.0 * abs(ALF_nrmse - ALF_nrmse_nn) / ALF_nrmse
-    parameters.lambda_bmp1a_Chd = lambda_bmp1a_Chd
-    parameters.lambda_bmp1a_BMPChd = lambda_bmp1a_BMPChd
-    # TLF simulation
-    lambda_Tld_Chd = parameters.lambda_Tld_Chd
-    lambda_Tld_BMPChd = parameters.lambda_Tld_BMPChd
-    parameters.lambda_Tld_Chd = 0.0
-    parameters.lambda_Tld_BMPChd = 0.0
-    TLF_sim, _ = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
-    TLF_nn, _ = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
-    TLF_nrmse = np.sqrt(np.power(TLF_sim - parameters.TLF_exp, 2).mean()) / 61.9087
-    TLF_nrmse_nn = np.sqrt(np.power(TLF_nn - parameters.TLF_exp, 2).mean()) / 61.9087
-    TLF_error = 100.0 * abs(TLF_nrmse - TLF_nrmse_nn) / TLF_nrmse
-    parameters.lambda_Tld_Chd = lambda_Tld_Chd
-    parameters.lambda_Tld_BMPChd = lambda_Tld_BMPChd
-    # TALF simulation
-    lambda_bmp1a_Chd = parameters.lambda_bmp1a_Chd
-    lambda_bmp1a_BMPChd = parameters.lambda_bmp1a_BMPChd
-    lambda_Tld_Chd = parameters.lambda_Tld_Chd
-    lambda_Tld_BMPChd = parameters.lambda_Tld_BMPChd
-    parameters.lambda_bmp1a_Chd = 0.0
-    parameters.lambda_bmp1a_BMPChd = 0.0
-    parameters.lambda_Tld_Chd = 0.0
-    parameters.lambda_Tld_BMPChd = 0.0
-    TALF_sim, _ = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
-    TALF_nn, _ = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
-    TALF_nrmse = np.sqrt(np.power(TALF_sim - parameters.TALF_exp, 2).mean()) / 61.9087
-    TALF_nrmse_nn = np.sqrt(np.power(TALF_nn - parameters.TALF_exp, 2).mean()) / 61.9087
-    TALF_error = 100.0 * abs(TALF_nrmse - TALF_nrmse_nn) / TALF_nrmse
-    parameters.lambda_bmp1a_Chd = lambda_bmp1a_Chd
-    parameters.lambda_bmp1a_BMPChd = lambda_bmp1a_BMPChd
-    parameters.lambda_Tld_Chd = lambda_Tld_Chd
-    parameters.lambda_Tld_BMPChd = lambda_Tld_BMPChd
-    # SLF simulation
-    Vs = parameters.Vs
-    parameters.Vs = 0.0
-    SLF_sim, _ = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
-    SLF_nn, _ = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
-    SLF_nrmse = np.sqrt(np.power(SLF_sim - parameters.SLF_exp, 2).mean()) / 61.9087
-    SLF_nrmse_nn = np.sqrt(np.power(SLF_nn - parameters.SLF_exp, 2).mean()) / 61.9087
-    SLF_error = 100.0 * abs(SLF_nrmse - SLF_nrmse_nn) / SLF_nrmse
-    parameters.Vs = Vs
+def run_simulation(parameters, model, options):
 
-    total_error = (WT_error + CLF_error + NLF_error + ALF_error + TLF_error + TALF_error + SLF_error) / 7.0
+    results = []
+    
+    if 'WT' in options:
+        # WT simulation
+        WT_sim, ref_sim = solve_pde(parameters, parameters.WT_ref_exp, None)
+        WT_nn, ref_nn = solve_pde_nn(parameters, parameters.WT_ref_exp, None, model)
+        WT_nrmse = np.sqrt(np.power(WT_sim - parameters.WT_exp, 2).mean()) / 61.9087
+        WT_nrmse_nn = np.sqrt(np.power(WT_nn - parameters.WT_exp, 2).mean()) / 61.9087
+        WT_error = 100.0 * abs(WT_nrmse - WT_nrmse_nn) / WT_nrmse
+        results.append([WT_nrmse, WT_nrmse_nn, WT_error])
+    if 'CLF' in options:
+        # CLF simulation
+        j2 = parameters.j2
+        parameters.j2 = 0.0
+        CLF_sim, _ = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
+        CLF_nn, _ = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
+        CLF_nrmse = np.sqrt(np.power(CLF_sim - parameters.CLF_exp, 2).mean()) / 61.9087
+        CLF_nrmse_nn = np.sqrt(np.power(CLF_nn - parameters.CLF_exp, 2).mean()) / 61.9087
+        CLF_error = 100.0 * abs(CLF_nrmse - CLF_nrmse_nn) / CLF_nrmse
+        parameters.j2 = j2
+    if 'NLF' in options:
+        # NLF simulation
+        j3 = parameters.j3
+        parameters.j3 = 0.0
+        NLF_sim, _ = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
+        NLF_nn, _ = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
+        NLF_nrmse = np.sqrt(np.power(NLF_sim - parameters.WT_exp, 2).mean()) / 61.9087
+        NLF_nrmse_nn = np.sqrt(np.power(NLF_nn - parameters.WT_exp, 2).mean()) / 61.9087
+        NLF_error = 100.0 * abs(NLF_nrmse - NLF_nrmse_nn) / NLF_nrmse
+        parameters.j3 = j3
+    if 'ALF' in options:
+        # ALF simulation
+        lambda_bmp1a_Chd = parameters.lambda_bmp1a_Chd
+        lambda_bmp1a_BMPChd = parameters.lambda_bmp1a_BMPChd
+        parameters.lambda_bmp1a_Chd = 0.0
+        parameters.lambda_bmp1a_BMPChd = 0.0
+        ALF_sim, _ = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
+        ALF_nn, _ = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
+        ALF_nrmse = np.sqrt(np.power(ALF_sim - parameters.ALF_exp, 2).mean()) / 61.9087
+        ALF_nrmse_nn = np.sqrt(np.power(ALF_nn - parameters.ALF_exp, 2).mean()) / 61.9087
+        ALF_error = 100.0 * abs(ALF_nrmse - ALF_nrmse_nn) / ALF_nrmse
+        parameters.lambda_bmp1a_Chd = lambda_bmp1a_Chd
+        parameters.lambda_bmp1a_BMPChd = lambda_bmp1a_BMPChd
+    if 'TLF' in options:
+        # TLF simulation
+        lambda_Tld_Chd = parameters.lambda_Tld_Chd
+        lambda_Tld_BMPChd = parameters.lambda_Tld_BMPChd
+        parameters.lambda_Tld_Chd = 0.0
+        parameters.lambda_Tld_BMPChd = 0.0
+        TLF_sim, _ = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
+        TLF_nn, _ = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
+        TLF_nrmse = np.sqrt(np.power(TLF_sim - parameters.TLF_exp, 2).mean()) / 61.9087
+        TLF_nrmse_nn = np.sqrt(np.power(TLF_nn - parameters.TLF_exp, 2).mean()) / 61.9087
+        TLF_error = 100.0 * abs(TLF_nrmse - TLF_nrmse_nn) / TLF_nrmse
+        parameters.lambda_Tld_Chd = lambda_Tld_Chd
+        parameters.lambda_Tld_BMPChd = lambda_Tld_BMPChd
+    if 'TALF' in options:
+        # TALF simulation
+        lambda_bmp1a_Chd = parameters.lambda_bmp1a_Chd
+        lambda_bmp1a_BMPChd = parameters.lambda_bmp1a_BMPChd
+        lambda_Tld_Chd = parameters.lambda_Tld_Chd
+        lambda_Tld_BMPChd = parameters.lambda_Tld_BMPChd
+        parameters.lambda_bmp1a_Chd = 0.0
+        parameters.lambda_bmp1a_BMPChd = 0.0
+        parameters.lambda_Tld_Chd = 0.0
+        parameters.lambda_Tld_BMPChd = 0.0
+        TALF_sim, _ = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
+        TALF_nn, _ = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
+        TALF_nrmse = np.sqrt(np.power(TALF_sim - parameters.TALF_exp, 2).mean()) / 61.9087
+        TALF_nrmse_nn = np.sqrt(np.power(TALF_nn - parameters.TALF_exp, 2).mean()) / 61.9087
+        TALF_error = 100.0 * abs(TALF_nrmse - TALF_nrmse_nn) / TALF_nrmse
+        parameters.lambda_bmp1a_Chd = lambda_bmp1a_Chd
+        parameters.lambda_bmp1a_BMPChd = lambda_bmp1a_BMPChd
+        parameters.lambda_Tld_Chd = lambda_Tld_Chd
+        parameters.lambda_Tld_BMPChd = lambda_Tld_BMPChd
+    if 'SLF' in options:
+        # SLF simulation
+        Vs = parameters.Vs
+        parameters.Vs = 0.0
+        SLF_sim, _ = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
+        SLF_nn, _ = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
+        SLF_nrmse = np.sqrt(np.power(SLF_sim - parameters.SLF_exp, 2).mean()) / 61.9087
+        SLF_nrmse_nn = np.sqrt(np.power(SLF_nn - parameters.SLF_exp, 2).mean()) / 61.9087
+        SLF_error = 100.0 * abs(SLF_nrmse - SLF_nrmse_nn) / SLF_nrmse
+        parameters.Vs = Vs
+
+    #total_error = (WT_error + CLF_error + NLF_error + ALF_error + TLF_error + TALF_error + SLF_error) / 7.0
     
     #return [[WT_nrmse, WT_nrmse_nn], [CLF_nrmse, CLF_nrmse_nn], [NLF_nrmse, NLF_nrmse_nn], [ALF_nrmse, ALF_nrmse_nn],
     #        [TLF_nrmse, TLF_nrmse_nn], [TALF_nrmse, TALF_nrmse_nn], total_error]
-    return [WT_error, CLF_error, NLF_error, ALF_error, TLF_error, TALF_error, SLF_error, total_error]
+    #return [WT_error, CLF_error, NLF_error, ALF_error, TLF_error, TALF_error, SLF_error, total_error]
+    return results
 
 if __name__ == '__main__':
     #random.seed(0)
@@ -366,7 +399,8 @@ if __name__ == '__main__':
         parameters_list.append(parameters)
     start_time = time()
     for i in range(10):
-        results = run_simulation(parameters_list[i], model)
+        results = run_simulation(parameters_list[i], model, 'WT')
+        print(parameters_list[i])
         total_error += results[-1]
         print(i, results)
         #break
