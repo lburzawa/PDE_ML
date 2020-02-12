@@ -15,7 +15,7 @@ class Net(nn.Module):
         self.fc1 = nn.Linear(2, 128)
         self.bn1 = nn.BatchNorm1d(128)
         self.lstm = nn.LSTMCell(128, 128)
-        self.fc2 = nn.Linear(128, 16)
+        self.fc2 = nn.Linear(128, 32)
         #self.fc_mean = nn.Linear(128, 1)
         #self.fc_std = nn.Linear(128, 1)
 

@@ -11,16 +11,15 @@ import random
 from random import sample, randint, uniform
 from time import time
 from tqdm import trange
-from model import Net
+from model_rl import Net
 from solver import Parameters
 from solver import run_simulation
 from math import exp
-from multiprocessing import Pool
 
 
 parser = ArgumentParser()
 _ = parser.add_argument
-_('--save_dir', type = str, default = './save', help = 'save directory')
+_('--save_dir', type = str, default = './save_rl', help = 'save directory')
 args = parser.parse_args()
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -61,16 +60,16 @@ def set_var_parameters(parameters, outputs):
     parameters.kmt = 10 ** outputs[4].item()
     parameters.lambda_bmp1a_BMPChd = 10 ** outputs[5].item()
     parameters.kma = 10 ** outputs[6].item()
-    parameters.D_Chd = 0.5 * (10 ** outputs[7].item()) / parameters.dx2
+    parameters.D_Chd = 0.5 * (10 ** outputs[7].item())
     parameters.j2 = 10 ** outputs[8].item()
     parameters.lambda_Tld_Chd = 10 ** outputs[9].item()
     parameters.lambda_bmp1a_Chd = 10 ** outputs[10].item()
-    parameters.D_Nog = (10 ** outputs[11].item()) / parameters.dx2
+    parameters.D_Nog = (10 ** outputs[11].item())
     parameters.dec_Nog = 10 ** outputs[12].item()
     parameters.j3 = 10 ** outputs[13].item()
-    parameters.D_BMPChd = (10 ** outputs[14].item()) / parameters.dx2
+    parameters.D_BMPChd = (10 ** outputs[14].item())
     parameters.dec_BMPChd = 10 ** outputs[15].item()
-    parameters.D_BMPNog = (10 ** outputs[16].item()) / parameters.dx2
+    parameters.D_BMPNog = (10 ** outputs[16].item())
     parameters.dec_BMPNog = 10 ** outputs[17].item()
     parameters.dec_Szd = 10 ** outputs[18].item()
 
@@ -92,10 +91,7 @@ if __name__ == '__main__':
     model = model.cuda()
     optimizer = torch.optim.Adam(model.parameters(), lr = learning_rate)
 
-    parameters_list = []
-    for i in range(batch_size):
-        parameters = Parameters()
-        parameters_list.append(parameters)
+    parameters = Parameters()
 
     print("Starting the training!")
     start_time = time()
@@ -106,7 +102,7 @@ if __name__ == '__main__':
     baseline_count = 0
     baseline = 0.0
     whole_batch = torch.arange(batch_size)
-    p = Pool()
+    solver_options = ['WT', 'sim']
 
     for epoch in range(epochs):
         print("\nEpoch %d\n-------" % (epoch+1))
@@ -129,25 +125,22 @@ if __name__ == '__main__':
                 probs = F.softmax(policy, 1)
                 log_probs = F.log_softmax(policy, 1)
                 a = probs.multinomial(num_samples=1).detach().squeeze(1)
-                outputs[:, t] = (max_values[t] - min_values[t]) * (a/15.0) + min_values[t]
+                outputs[:, t] = (max_values[t] - min_values[t]) * (a/31.0) + min_values[t]
                 log_probs_list.append(log_probs[whole_batch, a])
                 entropy_list.append(-(probs * log_probs).sum(1))
-            for i in range(batch_size):
-                set_var_parameters(parameters_list[i], outputs[i])
-            errors = p.map(run_simulation, parameters_list)
-            #for i in range(batch_size):
-            #    errors.append(run_simulation(parameters_list[i]))
-            errors = torch.FloatTensor(errors).sum(1)
+            set_var_parameters(parameters, outputs[0])
+            errors = run_simulation(parameters, solver_options)  
+            error = sum(errors)
             #print(outputs)
             #print(errors)
-            error_total += errors.mean()
-            error_min = min(error_min, errors.min())
+            error_total += error
+            error_min = min(error_min, error)
             log_probs_sum = 0.0
             entropy_sum = 0.0
             for i in range(len(log_probs_list)):
                 log_probs_sum += log_probs_list[i]
                 entropy_sum += entropy_list[i]
-            reward = torch.exp(-errors).cuda()
+            reward = torch.exp(-torch.FloatTensor([error])).cuda()
             forward_time += (time() - forward_start_time)
 
             backward_start_time = time()
@@ -171,30 +164,6 @@ if __name__ == '__main__':
         print(baseline)
         print("Results: mean error: {:f} min: {:f}".format(error_total / training_steps_per_epoch, error_min))
         print('Loss_policy: {:f}, loss_entropy: {:f}'.format(loss_policy_total/(training_steps_per_epoch*seq_len), loss_entropy_total/(training_steps_per_epoch*seq_len)))
-
-        '''
-        print("\nTesting...")
-        test_start_time = time()
-        with torch.no_grad():
-            error_list = []
-            model.eval()
-            for learning_step in trange(testing_steps_per_epoch, leave=False):
-                output_list = []
-                inp = torch.zeros(1, 8).cuda()
-                hidden = model.init_hidden()
-                for t in range(seq_len):
-                    policy, hidden = model(inp, hidden)
-                    _, a = torch.max(policy, 1)
-                    output_list.append(-5.0 + a)
-                    inp = torch.zeros(1, 8).cuda()
-                    inp[0, a] = 1.0
-                set_var_parameters(parameters, output_list)
-                errors = run_simulation(parameters)
-                error = sum(errors)
-                error_list.append(error)
-        test_time += (time() - test_start_time)
-        print("Results: error: {:f}".format(sum(error_list) / len(error_list)))
-        '''
 
         #torch.save(model.state_dict(), model_savefile)
         total_time = time() - start_time
