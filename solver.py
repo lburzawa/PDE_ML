@@ -74,6 +74,8 @@ class Parameters:
         info += 'lambda_Tld_BMPChd' + ' ' + str(self.lambda_Tld_BMPChd) + ' ' + 'range [1e-4, 1]' + '\n'
         info += 'lambda_bmp1a_Chd' + ' ' + str(self.lambda_bmp1a_Chd) + ' ' + 'range [1e-4, 1]' + '\n'
         info += 'lambda_bmp1a_BMPChd' + ' ' + str(self.lambda_bmp1a_BMPChd) + ' ' + 'range [1e-4, 1]' + '\n'
+        info += 'j1' + ' ' + str(self.j1) + ' ' + 'range [1e-3, 1e-1]' + '\n'
+        info += 'j2' + ' ' + str(self.j2) + ' ' + 'range [1e-2, 1e1]' + '\n'
         return info
 
 
