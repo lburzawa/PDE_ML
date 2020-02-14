@@ -186,7 +186,6 @@ def read_from_file(parameters, path):
 
 
 def normalize_inputs(data):
-    data = torch.abs(data)
     data[abs(data) < 1e-8] = 1e-8
     data = torch.log10(data)
     data /= 10.0
@@ -286,9 +285,9 @@ def solve_pde_nn(parameters, ref_exp, ref_nn, model):
 def run_simulation(parameters, options, model=None):
 
     results = []
-    
+
+    # WT simulation
     if 'WT' in options:
-        # WT simulation
         if 'sim' in options:
             WT_sim, ref_sim = solve_pde(parameters, parameters.WT_ref_exp, None)
             WT_nrmse = np.sqrt(np.power(WT_sim - parameters.WT_exp, 2).mean()) / 61.9087
@@ -307,11 +306,14 @@ def run_simulation(parameters, options, model=None):
         if 'sim' in options:
             CLF_sim, _ = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
             CLF_nrmse = np.sqrt(np.power(CLF_sim - parameters.CLF_exp, 2).mean()) / 61.9087
+            results.append(CLF_nrmse)
         if 'nn' in options:
             CLF_nn, _ = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
             CLF_nrmse_nn = np.sqrt(np.power(CLF_nn - parameters.CLF_exp, 2).mean()) / 61.9087
+            results.append(CLF_nrmse_nn)
         if 'sim' in options and 'nn' in options:
             CLF_error = 100.0 * abs(CLF_nrmse - CLF_nrmse_nn) / CLF_nrmse
+            results.append(CLF_error)
         parameters.j2 = j2
     if 'NLF' in options:
         # NLF simulation
@@ -320,11 +322,14 @@ def run_simulation(parameters, options, model=None):
         if 'sim' in options:
             NLF_sim, _ = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
             NLF_nrmse = np.sqrt(np.power(NLF_sim - parameters.WT_exp, 2).mean()) / 61.9087
+            results.append(NLF_nrmse)
         if 'nn' in options:
             NLF_nn, _ = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
             NLF_nrmse_nn = np.sqrt(np.power(NLF_nn - parameters.WT_exp, 2).mean()) / 61.9087
+            results.append(NLF_nrmse_nn)
         if 'sim' in options and 'nn' in options:
             NLF_error = 100.0 * abs(NLF_nrmse - NLF_nrmse_nn) / NLF_nrmse
+            results.append(NLF_error)
         parameters.j3 = j3
     if 'ALF' in options:
         # ALF simulation
@@ -417,10 +422,10 @@ if __name__ == '__main__':
     parameters_list = []
     min_val = 1.0
     total_error = 0.0
-    options = ['WT', 'sim']
+    options = ['WT', 'CLF', 'sim', 'nn']
     parameters = Parameters()
     start_time = time()
-    for i in range(1000):
+    for i in range(100):
         set_discrete_parameters(parameters)
         results = run_simulation(parameters, options)
         #print(parameters_list[i])
