@@ -422,16 +422,17 @@ if __name__ == '__main__':
     parameters_list = []
     min_val = 1.0
     total_error = 0.0
-    options = ['WT', 'CLF', 'sim', 'nn']
+    options = ['WT', 'CLF', 'sim']
     parameters = Parameters()
     start_time = time()
-    for i in range(100):
+    for i in range(1000):
         set_discrete_parameters(parameters)
         results = run_simulation(parameters, options)
         #print(parameters_list[i])
         #total_error += results[0]
-        min_val = min(min_val, results[0])
-        print(i, results, min_val)
+        result = results[0] + results[1]
+        min_val = min(min_val, result)
+        print(i, result, min_val)
         #break
     print(min_val)
     #print(time()-start_time)

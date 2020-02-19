@@ -7,7 +7,6 @@ import pandas as pd
 
 def normalize_data(data):
     data = torch.FloatTensor(data)
-    data = torch.abs(data)
     data[abs(data) < 1e-8] = 1e-8
     data = torch.log10(data)
     data /= 10.0
@@ -16,8 +15,9 @@ def normalize_data(data):
 
 class CSVdata(data.Dataset):
 
-    def __init__(self, data_path):
-        self.num_inputs = 22
+    def __init__(self, data_path, num_inputs):
+        self.num_inputs = num_inputs
+        offset = 23 - self.num_inputs
         self.num_outputs = 36
         data = pd.read_csv(data_path, header=None)
         self.mutation_list = data.iloc[:, -1]
@@ -27,7 +27,7 @@ class CSVdata(data.Dataset):
         data = data[:, :-1]
         data = normalize_data(data)
         self.input_data = data[:, :self.num_inputs].clone()
-        self.output_data = data[:, self.num_inputs + 1 : self.num_inputs + 1 + self.num_outputs].clone()
+        self.output_data = data[:, self.num_inputs + offset : self.num_inputs + offset + self.num_outputs].clone()
 
         self.sstot = (self.output_data - self.output_data.mean()).pow(2).sum().item()
         #print(output_data.mean())

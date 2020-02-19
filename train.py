@@ -24,6 +24,7 @@ from scipy.io import loadmat
 parser = argparse.ArgumentParser(description='Simulation Data Training')
 parser.add_argument('--data', default='', type=str, help='path to dataset')
 parser.add_argument('--lstm', action='store_true', help='use lstm')
+parser.add_argument('--use_k', action='store_true', help='use k values')
 parser.add_argument('-j', '--workers', default=4, type=int, help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', default=100, type=int, help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, help='manual epoch number (useful on restarts)')
@@ -48,11 +49,13 @@ def main():
 
     print("Use GPU: {} for training".format(args.gpu))
 
+    num_inputs = 22 + int(args.use_k)
+
     # create model
     if args.lstm:
         model = ModelLSTM()
     else:
-        model = ModelSimple()
+        model = ModelSimple(num_inputs)
 
     torch.cuda.set_device(args.gpu)
     model = model.cuda(args.gpu)
@@ -81,15 +84,24 @@ def main():
 
     # Data loading code
     data_dir = Path(args.data)
-    train_dataset = CSVdata(data_dir / 'train_data.csv')
-    val_dataset = CSVdata(data_dir / 'val_data.csv')
+    train_dataset = CSVdata(data_dir / 'train_data.csv', num_inputs)
+    val_dataset = CSVdata(data_dir / 'val_data.csv', num_inputs)
     sstot_train = train_dataset.sstot
     sstot_val = val_dataset.sstot
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.workers, pin_memory=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=280, shuffle=False, num_workers=args.workers, pin_memory=True)
+    exp_data = loadmat('pSmad_WT_MT_new.mat')
+    exp_vars = {}
+    exp_vars['WT'], ref_exp = read_exp_data(exp_data, 'pWT_57')
+    exp_vars['CLF'], _ = read_exp_data(exp_data, 'pCLF_57')
+    exp_vars['NLF'] = exp_vars['WT']
+    exp_vars['ALF'], _ = read_exp_data(exp_data, 'pALF_57')
+    exp_vars['TLF'], _ = read_exp_data(exp_data, 'pTLF_57')
+    exp_vars['TALF'], _ = read_exp_data(exp_data, 'pTALF_57')
+    exp_vars['SLF'], _ = read_exp_data(exp_data, 'pSLF_57')
 
     if args.evaluate:
-        validate(val_loader, model, criterion, -1, sstot_val, best_score, args)
+        validate(val_loader, model, criterion, -1, sstot_val, best_score, exp_vars, ref_exp, args)
         return
 
     for epoch in range(args.start_epoch, args.epochs):
@@ -100,7 +112,7 @@ def main():
         train(train_loader, model, criterion, optimizer, epoch, sstot_train, args)
 
         # evaluate on validation set
-        is_best, best_score = validate(val_loader, model, criterion, epoch, sstot_val, best_score, args)
+        is_best, best_score = validate(val_loader, model, criterion, epoch, sstot_val, best_score, exp_vars, ref_exp, args)
 
         # save checkpoint
         save_checkpoint({
@@ -179,22 +191,30 @@ def read_exp_data(exp_data, var_name):
 def calculate_error(exp_data, nn_data, ref_exp, target_error, mutation_type):
     num_mutations = 7
     sim_error = 0.0
+    mutation_errors = {mutation : 0.0 for mutation in mutation_type[:num_mutations]}
+    outlier_count = {mutation : 0.0 for mutation in mutation_type[:num_mutations]}
+    mutation_errors_clean = {mutation: 0.0 for mutation in mutation_type[:num_mutations]}
     for i in range(nn_data.size(0)):
         target = target_error[i].item()
         nn_output = nn_data[i].detach().cpu().numpy()
         nn_output = np.power(10.0, (10.0 * nn_output))
-        #nn_output = 1000.0 * nn_output
         if i % num_mutations == 0:
             ref_sim = (np.sort(nn_output)[-5:]).mean()
         nn_output = nn_output[0:32:2]
         nn_output *= ref_exp / ref_sim
         error = np.sqrt(np.power(nn_output - exp_data[mutation_type[i]], 2).mean()) / 61.9087
-        sim_error += 100.0 * abs(error - target) / target
-    sim_error /= nn_data.size(0)
-    return sim_error
+        mutation_errors[mutation_type[i]] += 100.0 * abs(error - target) / target
+        if target < 1.0:
+            mutation_errors_clean[mutation_type[i]] += 100.0 * abs(error - target) / target
+        else:
+            outlier_count[mutation_type[i]] += 1
+    for mutation in mutation_type[:num_mutations]:
+        mutation_errors[mutation] /= nn_data.size(0) // num_mutations
+        mutation_errors_clean[mutation] /= (nn_data.size(0) // num_mutations) - outlier_count[mutation]
+    return mutation_errors, mutation_errors_clean
 
 
-def validate(val_loader, model, criterion, epoch, sstot, best_score, args):
+def validate(val_loader, model, criterion, epoch, sstot, best_score, exp_vars, ref_exp, args):
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
     losses = AverageMeter('Loss', ':.4e')
@@ -208,16 +228,6 @@ def validate(val_loader, model, criterion, epoch, sstot, best_score, args):
         prefix='Test:  [{}]'.format(epoch))
     #if epoch==-1:
     #    results = torch.zeros(len(val_loader.dataset), 36, 6)
-
-    exp_data = loadmat('pSmad_WT_MT_new.mat')
-    exp_vars = {}
-    exp_vars['WT'], ref_exp = read_exp_data(exp_data, 'pWT_57')
-    exp_vars['CLF'], _ = read_exp_data(exp_data, 'pCLF_57')
-    exp_vars['NLF'] = exp_vars['WT']
-    exp_vars['ALF'], _ = read_exp_data(exp_data, 'pALF_57')
-    exp_vars['TLF'], _ = read_exp_data(exp_data, 'pTLF_57')
-    exp_vars['TALF'], _ = read_exp_data(exp_data, 'pTALF_57')
-    exp_vars['SLF'], _ = read_exp_data(exp_data, 'pSLF_57')
 
     # switch to evaluate mode
     model.eval()
@@ -250,7 +260,8 @@ def validate(val_loader, model, criterion, epoch, sstot, best_score, args):
             #ssres = (target - output).pow(2).sum()
             losses.update(loss.item(), inputs.size(0))
             ssres_vals.update(ssres.item(), 1)
-            sim_error = calculate_error(exp_vars, output, ref_exp, target_error, mutation_type)
+            mutation_errors, mutation_errors_clean = calculate_error(exp_vars, output, ref_exp, target_error, mutation_type)
+            sim_error = sum(mutation_errors.values()) / 7.0
             sim_errors.update(sim_error, inputs.size(0))
 
             # measure elapsed time
@@ -259,14 +270,11 @@ def validate(val_loader, model, criterion, epoch, sstot, best_score, args):
 
             if (i+1) % args.print_freq == 0:
                 progress.display(i+1)
-                #output = output.view(output.size(0), 36, 6)
-                #target = target.view(target.size(0), 36, 6)
-                print(10 ** (10.0 * inputs[12]))
+                #print(10 ** (10.0 * inputs[12]))
                 #print(10 ** (10.0 * target[16, :, 1]))
-
-                print(10 ** (10.0 * target[12]))
-                parameters = inputs2parameters(inputs[12])
-                results = run_simulation(parameters, model)
+                #print(10 ** (10.0 * target[12]))
+                #parameters = inputs2parameters(inputs[12])
+                #results = run_simulation(parameters, model)
                 #print(results)
                 #print('---')
 
@@ -279,13 +287,13 @@ def validate(val_loader, model, criterion, epoch, sstot, best_score, args):
         best_score_obj.update(best_score)
 
         progress.display(i+1)
+        print(mutation_errors)
+        print(mutation_errors_clean)
         #if epoch==-1:
         #    torch.save(results, './results.pth')
 
         #print(output[12,100:110])
         #print(target[12,100:110])
-        #output = output.view(output.size(0), 36, 6)
-        #target = target.view(target.size(0), 36, 6)
         #print(10 ** (10.0*inputs[16]))
         #parameters = inputs2parameters(inputs[16])
         #results = run_simulation(parameters, model)

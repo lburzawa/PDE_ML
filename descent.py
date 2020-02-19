@@ -17,7 +17,9 @@ from solver import set_discrete_parameters
 from solver import run_simulation
 from solver import inputs2parameters
 from math import log10
-random.seed(4)
+from math import cos
+from math import pi
+random.seed(8)
 os.environ['MKL_NUM_THREADS'] = '1'
 
 min_values = (torch.FloatTensor([[-2.0, -2.0, -2.0, log10(0.5),  -5.0, -5.0, -5.0, -5.0, -2.0, -4.0, -4.0, 0.0, 0.0,
@@ -42,15 +44,16 @@ if __name__ == '__main__':
     CLF_exp = torch.FloatTensor(parameters.CLF_exp).cuda()
     
     min_error = 10.0
-    lr = 0.001
+    lr = 0.008
     penalty_coeff = 0.0
     momentum = torch.zeros(1, 22).cuda()
     momentum_coeff = 0.9
     #mask.requires_grad = True
+    max_steps = 2000
     for i in range(1):
         set_discrete_parameters(parameters)
         inputs = prepare_inputs(parameters).cuda()
-        for j in range(1000):
+        for j in range(max_steps):
             inputs.requires_grad = True
             outputs = model(inputs)[0]
             outputs = torch.pow(10.0, 10.0 * outputs)
@@ -71,7 +74,7 @@ if __name__ == '__main__':
             penalty = min_values - torch.min(inputs, min_values) + torch.max(inputs, max_values) - max_values
             bad_param_count = (penalty[0] > 0.0).sum().item()
             penalty = penalty.mean()
-            loss = WT_nrmse + CLF_nrmse #+ penalty_coeff * penalty
+            loss = WT_nrmse + CLF_nrmse  # + penalty_coeff * penalty
             if loss.item() < min_error: # and penalty.item() == 0.0:
                 best_inputs = inputs.detach().clone().squeeze()
                 min_error = loss.item() #min(min_error, loss.item())
@@ -86,21 +89,25 @@ if __name__ == '__main__':
             grads2[0, 18] = 0.0
             grads = grads1 + grads2
             grads[:, -3:] = 0.0
-            #grads[:, 18] = 0.0
-            momentum = momentum_coeff * momentum - lr * grads.detach()
+            #momentum = momentum_coeff * momentum - lr * grads.detach()
+            #v = 0.99 * v + 0.01 * torch.pow(grads, 2.0)
             #print(momentum)
-            inputs = inputs + momentum
-            #inputs = torch.max(inputs, min_values)
-            #inputs = torch.min(inputs, max_values)
+            #new_lr = lr / torch.sqrt(v)
+            #inputs = inputs - new_lr * grads
+            #lr = 0.5 * (1 + cos(j * pi / max_steps)) * ilr
+            inputs = inputs - lr * grads.detach()
+            #print(new_lr)
+            inputs = torch.max(inputs, min_values)
+            inputs = torch.min(inputs, max_values)
             inputs = inputs.detach()
             
-            if j % 10 == 0:
+            if j % 100 == 0:
                 print(j, loss.item(), penalty.item(), bad_param_count)
 
-            if (j+1) % 10 == 0:
-                lr *= 0.8
-            #if (j+1) == 500:
-            #    lr = 0.005
+            if (j+1) % 100 == 0:
+                lr *= 0.9
+            #if (j+1) == 1000:
+            #    lr *= 0.5
             #if (j + 1) == 1500:
             #    lr = 0.001
             #if (j+1) == 3000:
@@ -118,3 +125,4 @@ if __name__ == '__main__':
     results = run_simulation(parameters, options, model)
     print(results)
     print(results[1] + results[4])
+    print(results[0] + results[3])

@@ -3,11 +3,11 @@ import torch.nn as nn
 
 class ModelSimple(nn.Module):
     
-    def __init__(self):
+    def __init__(self, num_inputs):
         super(ModelSimple, self).__init__()
         self.relu = nn.ReLU(inplace=True)
         self.dropout = nn.Dropout()
-        self.fc1 = nn.Linear(22, 2048)
+        self.fc1 = nn.Linear(num_inputs, 2048)
         self.fc2 = nn.Linear(2048, 2048)
         self.fc3 = nn.Linear(2048, 2048)
         self.fc4 = nn.Linear(2048, 36)
