@@ -32,11 +32,13 @@ parser.add_argument('-b', '--batch-size', default=256, type=int, help='mini-batc
 parser.add_argument('--lr', '--learning-rate', default=0.001, type=float, help='initial learning rate', dest='lr')
 parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
 parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float, help='weight decay (default: 1e-4)', dest='weight_decay')
-parser.add_argument('-p', '--print-freq', default=10, type=int, help='print frequency (default: 10)')
+parser.add_argument('-p', '--print-freq', default=10000, type=int, help='print frequency (default: 10)')
 parser.add_argument('--resume', default='', type=str, help='path to latest checkpoint (default: none)')
 parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true', help='evaluate model on validation set')
 parser.add_argument('--seed', default=0, type=int, help='seed for initializing training. ')
 parser.add_argument('--gpu', default=0, type=int, help='GPU id to use.')
+
+mutation_strings = ['WT', 'CLF', 'NLF', 'ALF', 'TLF', 'TALF', 'SLF']
 
 def main():
     args = parser.parse_args()
@@ -190,14 +192,15 @@ def read_exp_data(exp_data, var_name):
 
 def calculate_error(exp_data, nn_data, ref_exp, target_error, mutation_type):
     num_mutations = 7
-    sim_error = 0.0
-    mutation_errors = {mutation : 0.0 for mutation in mutation_type[:num_mutations]}
-    outlier_count = {mutation : 0.0 for mutation in mutation_type[:num_mutations]}
-    mutation_errors_clean = {mutation: 0.0 for mutation in mutation_type[:num_mutations]}
-    for i in range(nn_data.size(0)):
+    batch_size = nn_data.size(0)
+    nn_data = torch.pow(10.0, 10.0 * nn_data)
+    nn_data = nn_data.detach().cpu().numpy()
+    mutation_errors = {mutation : 0.0 for mutation in mutation_strings}
+    clean_count = {mutation : 0.0 for mutation in mutation_strings}
+    mutation_errors_clean = {mutation: 0.0 for mutation in mutation_strings}
+    for i in range(batch_size):
         target = target_error[i].item()
-        nn_output = nn_data[i].detach().cpu().numpy()
-        nn_output = np.power(10.0, (10.0 * nn_output))
+        nn_output = nn_data[i]
         if i % num_mutations == 0:
             ref_sim = (np.sort(nn_output)[-5:]).mean()
         nn_output = nn_output[0:32:2]
@@ -206,12 +209,8 @@ def calculate_error(exp_data, nn_data, ref_exp, target_error, mutation_type):
         mutation_errors[mutation_type[i]] += 100.0 * abs(error - target) / target
         if target < 1.0:
             mutation_errors_clean[mutation_type[i]] += 100.0 * abs(error - target) / target
-        else:
-            outlier_count[mutation_type[i]] += 1
-    for mutation in mutation_type[:num_mutations]:
-        mutation_errors[mutation] /= nn_data.size(0) // num_mutations
-        mutation_errors_clean[mutation] /= (nn_data.size(0) // num_mutations) - outlier_count[mutation]
-    return mutation_errors, mutation_errors_clean
+            clean_count[mutation_type[i]] += 1
+    return mutation_errors, mutation_errors_clean, clean_count
 
 
 def validate(val_loader, model, criterion, epoch, sstot, best_score, exp_vars, ref_exp, args):
@@ -220,17 +219,22 @@ def validate(val_loader, model, criterion, epoch, sstot, best_score, exp_vars, r
     losses = AverageMeter('Loss', ':.4e')
     ssres_vals = AverageMeter('SSres', ':.4f')
     r2_scores = AverageMeter('R2', ':.4f')
-    sim_errors = AverageMeter('Simulation error', ':.4f')
+    sim_errors = AverageMeter('Error', ':.4f')
+    sim_errors_clean = AverageMeter('Clean error', ':.4f')
     best_score_obj = AverageMeter('Best score', ':.4f') # dummy object to print out best R2 in the same format
     progress = ProgressMeter(
         len(val_loader),
-        [batch_time, data_time, losses, r2_scores, sim_errors, best_score_obj],
+        [batch_time, data_time, losses, r2_scores, sim_errors, sim_errors_clean, best_score_obj],
         prefix='Test:  [{}]'.format(epoch))
     #if epoch==-1:
     #    results = torch.zeros(len(val_loader.dataset), 36, 6)
 
     # switch to evaluate mode
     model.eval()
+
+    mutation_errors_total = {mutation: 0.0 for mutation in mutation_strings}
+    clean_count_total = {mutation: 0.0 for mutation in mutation_strings}
+    mutation_errors_clean_total = {mutation: 0.0 for mutation in mutation_strings}
 
     with torch.no_grad():
         end = time.time()
@@ -260,9 +264,11 @@ def validate(val_loader, model, criterion, epoch, sstot, best_score, exp_vars, r
             #ssres = (target - output).pow(2).sum()
             losses.update(loss.item(), inputs.size(0))
             ssres_vals.update(ssres.item(), 1)
-            mutation_errors, mutation_errors_clean = calculate_error(exp_vars, output, ref_exp, target_error, mutation_type)
-            sim_error = sum(mutation_errors.values()) / 7.0
-            sim_errors.update(sim_error, inputs.size(0))
+            mutation_errors, mutation_errors_clean, clean_count = calculate_error(exp_vars, output, ref_exp, target_error, mutation_type)
+            for mutation in mutation_strings:
+                mutation_errors_total[mutation] += mutation_errors[mutation]
+                mutation_errors_clean_total[mutation] += mutation_errors_clean[mutation]
+                clean_count_total[mutation] += clean_count[mutation]
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -282,13 +288,20 @@ def validate(val_loader, model, criterion, epoch, sstot, best_score, exp_vars, r
         #print(sstot)
         r2 = 1.0 - (ssres_vals.sum / sstot)
         r2_scores.update(r2)
-        is_best = sim_errors.avg < best_score
-        best_score = min(sim_errors.avg, best_score)
+        sim_error = sum(mutation_errors_total.values()) / len(val_loader.dataset)
+        sim_error_clean = sum(mutation_errors_clean_total.values()) / sum(clean_count_total.values())
+        sim_errors.update(sim_error)
+        sim_errors_clean.update(sim_error_clean)
+        is_best = sim_error_clean < best_score
+        best_score = min(sim_error_clean, best_score)
         best_score_obj.update(best_score)
 
         progress.display(i+1)
-        print(mutation_errors)
-        print(mutation_errors_clean)
+        for mutation in mutation_strings:
+            mutation_errors_total[mutation] /= len(val_loader.dataset) // 7
+            mutation_errors_clean_total[mutation] /= clean_count_total[mutation]
+        print(mutation_errors_total)
+        print(mutation_errors_clean_total)
         #if epoch==-1:
         #    torch.save(results, './results.pth')
 
