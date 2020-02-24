@@ -198,6 +198,7 @@ def calculate_error(exp_data, nn_data, ref_exp, target_error, mutation_type):
     mutation_errors = {mutation : 0.0 for mutation in mutation_strings}
     clean_count = {mutation : 0.0 for mutation in mutation_strings}
     mutation_errors_clean = {mutation: 0.0 for mutation in mutation_strings}
+    batch_errors = np.zeros((batch_size, 2), dtype=np.float64)
     for i in range(batch_size):
         target = target_error[i].item()
         nn_output = nn_data[i]
@@ -206,11 +207,14 @@ def calculate_error(exp_data, nn_data, ref_exp, target_error, mutation_type):
         nn_output = nn_output[0:32:2]
         nn_output *= ref_exp / ref_sim
         error = np.sqrt(np.power(nn_output - exp_data[mutation_type[i]], 2).mean()) / 61.9087
-        mutation_errors[mutation_type[i]] += 100.0 * abs(error - target) / target
+        rel_error = 100.0 * abs(error - target) / target
+        mutation_errors[mutation_type[i]] += rel_error
         if target < 1.0:
-            mutation_errors_clean[mutation_type[i]] += 100.0 * abs(error - target) / target
+            mutation_errors_clean[mutation_type[i]] += rel_error
             clean_count[mutation_type[i]] += 1
-    return mutation_errors, mutation_errors_clean, clean_count
+        batch_errors[i, 0] = target
+        batch_errors[i, 1] = error
+    return mutation_errors, mutation_errors_clean, clean_count, batch_errors
 
 
 def validate(val_loader, model, criterion, epoch, sstot, best_score, exp_vars, ref_exp, args):
@@ -226,8 +230,8 @@ def validate(val_loader, model, criterion, epoch, sstot, best_score, exp_vars, r
         len(val_loader),
         [batch_time, data_time, losses, r2_scores, sim_errors, sim_errors_clean, best_score_obj],
         prefix='Test:  [{}]'.format(epoch))
-    #if epoch==-1:
-    #    results = torch.zeros(len(val_loader.dataset), 36, 6)
+    if epoch==-1:
+        results = np.zeros((len(val_loader.dataset), 36 + 2), dtype=np.float64)
 
     # switch to evaluate mode
     model.eval()
@@ -253,10 +257,7 @@ def validate(val_loader, model, criterion, epoch, sstot, best_score, exp_vars, r
                     loss += criterion(output[j], target[:, j].unsqueeze(1))
                 output = torch.stack(output)
                 output = output.squeeze().transpose(0, 1)
-                
             else:
-                #if epoch==-1:
-                #    results[i*val_loader.batch_size : (i+1)*val_loader.batch_size] = output.view(output.size(0), 36, 6)
                 loss = criterion(output, target)
             ssres = (target - output).pow(2).sum()
 
@@ -264,11 +265,16 @@ def validate(val_loader, model, criterion, epoch, sstot, best_score, exp_vars, r
             #ssres = (target - output).pow(2).sum()
             losses.update(loss.item(), inputs.size(0))
             ssres_vals.update(ssres.item(), 1)
-            mutation_errors, mutation_errors_clean, clean_count = calculate_error(exp_vars, output, ref_exp, target_error, mutation_type)
+            mutation_errors, mutation_errors_clean, clean_count, batch_errors = calculate_error(exp_vars, output, ref_exp, target_error, mutation_type)
             for mutation in mutation_strings:
                 mutation_errors_total[mutation] += mutation_errors[mutation]
                 mutation_errors_clean_total[mutation] += mutation_errors_clean[mutation]
                 clean_count_total[mutation] += clean_count[mutation]
+
+            if epoch == -1:
+                output = torch.pow(10.0, 10.0 * output).detach().cpu().numpy()
+                results[i * val_loader.batch_size: (i + 1) * val_loader.batch_size, :36] = output
+                results[i * val_loader.batch_size: (i + 1) * val_loader.batch_size, 36:] = batch_errors
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -302,8 +308,8 @@ def validate(val_loader, model, criterion, epoch, sstot, best_score, exp_vars, r
             mutation_errors_clean_total[mutation] /= clean_count_total[mutation]
         print(mutation_errors_total)
         print(mutation_errors_clean_total)
-        #if epoch==-1:
-        #    torch.save(results, './results.pth')
+        if epoch==-1:
+            np.savetxt('./results.csv', results, delimiter=',')
 
         #print(output[12,100:110])
         #print(target[12,100:110])
