@@ -5,6 +5,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import torch
 import pandas as pd
+from scipy.stats import gaussian_kde
 
 parser = argparse.ArgumentParser(description='Simulation Data Training')
 parser.add_argument('--target_data', default='', type=str, help='path to dataset')
@@ -40,25 +41,78 @@ WT_sim = sim_data[0::7]
 WT_nn = nn_data[0::7]
 CLF_sim = sim_data[1::7]
 CLF_nn = nn_data[1::7]
+ind = np.float64(WT_sim<1.0) * np.float64(WT_nn<1.0) * np.float64(CLF_sim<1.0) * np.float64(CLF_nn<1.0)
+WT_sim = WT_sim * ind
+WT_nn = WT_nn * ind
+CLF_sim = CLF_sim * ind
+CLF_nn = CLF_nn * ind
+WT_sim = WT_sim[WT_sim>0.0]
+WT_nn = WT_nn[WT_nn>0.0]
+CLF_sim = CLF_sim[CLF_sim>0.0]
+CLF_nn = CLF_nn[CLF_nn>0.0]
+
 plt.xlabel('Simulation NRMSE')
 plt.ylabel('Neural network NRMSE')
 plt.title('WT results')
-plt.grid()
+#plt.grid()
 axes = plt.gca()
 axes.set_ylim(0.0, 1.0)
 axes.set_xlim(0.0, 1.0)
-plt.plot(WT_sim, WT_nn, '.')
+x, y = WT_sim.copy(), WT_nn.copy()
+xy = np.vstack([x, y])
+z = gaussian_kde(xy)(xy)
+idx = z.argsort()
+x, y, z = x[idx], y[idx], z[idx]
+#plt.plot(WT_sim, WT_nn, '.')
+#fig, ax = plt.subplots()
+plt.scatter(x, y, c=z) #, s=50) #, edgecolor='')
+#plt.colorbar()
 plt.savefig('./WT_comp.png')
 plt.clf()
-plt.plot(CLF_sim, CLF_nn, '.')
+
+axes = plt.gca()
+axes.set_ylim(0.0, 1.0)
+axes.set_xlim(0.0, 1.0)
+x, y = CLF_sim.copy(), CLF_nn.copy()
+xy = np.vstack([x, y])
+z = gaussian_kde(xy)(xy)
+idx = z.argsort()
+x, y, z = x[idx], y[idx], z[idx]
+plt.scatter(x, y, c=z)
 plt.xlabel('Simulation NRMSE')
 plt.ylabel('Neural network NRMSE')
 plt.title('CLF results')
-plt.grid()
+plt.savefig('./CLF_comp.png')
+plt.clf()
+
 axes = plt.gca()
 axes.set_ylim(0.0, 1.0)
 axes.set_xlim(0.0, 1.0)
-plt.savefig('./CLF_comp.png')
+x, y = WT_sim.copy(), CLF_sim.copy()
+xy = np.vstack([x, y])
+z = gaussian_kde(xy)(xy)
+idx = z.argsort()
+x, y, z = x[idx], y[idx], z[idx]
+plt.scatter(x, y, c=z)
+plt.xlabel('WT NRMSE')
+plt.ylabel('CLF NRMSE')
+plt.title('PDE simulation')
+plt.savefig('./plot_pareto_sim_all.png')
+plt.clf()
+
+axes = plt.gca()
+axes.set_ylim(0.0, 1.0)
+axes.set_xlim(0.0, 1.0)
+x, y = WT_nn.copy(), CLF_nn.copy()
+xy = np.vstack([x, y])
+z = gaussian_kde(xy)(xy)
+idx = z.argsort()
+x, y, z = x[idx], y[idx], z[idx]
+plt.scatter(x, y, c=z)
+plt.xlabel('WT NRMSE')
+plt.ylabel('CLF NRMSE')
+plt.title('Neural network model')
+plt.savefig('./plot_pareto_nn_all.png')
 plt.clf()
 
 for j in range(2):
