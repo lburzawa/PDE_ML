@@ -51,7 +51,7 @@ def main():
 
     print("Use GPU: {} for training".format(args.gpu))
 
-    num_inputs = 22 + int(args.use_k)
+    num_inputs = 23
 
     # create model
     if args.lstm:
@@ -75,7 +75,6 @@ def main():
             checkpoint = torch.load(args.resume)
             args.start_epoch = checkpoint['epoch']
             best_r2 = checkpoint['best_score']
-            #best_r2 = best_r2.to(args.gpu)
             model.load_state_dict(checkpoint['state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer'])
             print("=> loaded checkpoint '{}' (epoch {})".format(args.resume, checkpoint['epoch']))

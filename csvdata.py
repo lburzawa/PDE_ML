@@ -27,7 +27,7 @@ class CSVdata(data.Dataset):
         data = data[:, :-1]
         data = normalize_data(data)
         self.input_data = data[:, :self.num_inputs].clone()
-        self.output_data = data[:, self.num_inputs + offset : self.num_inputs + offset + self.num_outputs].clone()
+        self.output_data = data[:, self.num_inputs : self.num_inputs + self.num_outputs].clone()
 
         self.sstot = (self.output_data - self.output_data.mean()).pow(2).sum().item()
         #print(output_data.mean())
