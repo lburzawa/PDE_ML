@@ -8,6 +8,35 @@ Exploring the use of machine learning in PDE simulations.
 - Pandas `pip install pandas`
 - PyTorch ([pytorch.org](http://pytorch.org))
 
+## Project structure
+
+`csvdata.py` functions for loading and processing data into format suitable for training and/or validation
+
+`descent.py` gradient descent for PDE parameter search done on the neural network model - not working well so far
+
+`model_lstm.py` LSTM model used for PDE acceleration training
+
+`model_rl.py` LSTM model used for PDE parameter search with reinforcement learning
+
+`model_simple.py` MLP model used for PDE acceleration training
+
+`ode_fun.py` set of ODE equations used to solve the PDE system
+
+`pSmad_WT_MT_new.mat` experimental data
+
+`plotter.py` plotting tools
+
+`prepdata.py` data preprocessing script, pulls data from many MAT files and converts it into training and validation CSV files
+
+`profile.py` script for profiling NNs used for PDE acceleration
+
+`run_rl.py` PDE parameter search through reinforcement learning
+
+`solver.py` script to run PDE simulations
+
+`train.py` training script for PDE acceleration models
+
+
 ## Training
 
 To train a model, run `train.py` with the path to the data:
