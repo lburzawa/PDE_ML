@@ -7,24 +7,27 @@ from model_lstm import ModelLSTM
 parser = argparse.ArgumentParser(description='Profiler')
 parser.add_argument('--lstm', action='store_true', help='profile LSTM')
 parser.add_argument('--cuda', action='store_true', help='run on GPU')
-args = parser.parse_args()
 
-num_inputs = 23
+if __name__ == '__main__':
 
-if args.cuda:
-    device = torch.device("cuda")
-else:
-    device = torch.device("cpu")
+    args = parser.parse_args()
 
-if args.lstm:
-    model = ModelLSTM()
-else:
-    model = ModelSimple(num_inputs)
-model = model.to(device)
+    num_inputs = 23
 
-start_time = time()
-for i in range(1000):
-    x = torch.randn(1, num_inputs).to(device)
-    y = model(x)
+    if args.cuda:
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
 
-print("time is {:f}".format((time()-start_time)/1000.0))
+    if args.lstm:
+        model = ModelLSTM()
+    else:
+        model = ModelSimple(num_inputs)
+    model = model.to(device)
+
+    start_time = time()
+    for i in range(1000):
+        x = torch.randn(1, num_inputs).to(device)
+        y = model(x)
+
+    print("time is {:f}".format((time()-start_time)/1000.0))

@@ -102,7 +102,7 @@ if __name__ == '__main__':
     baseline_count = 0
     baseline = 0.0
     whole_batch = torch.arange(batch_size)
-    solver_options = ['WT', 'sim']
+    solver_options = ['WT', 'CLF', 'NLF', 'sim']
 
     for epoch in range(epochs):
         print("\nEpoch %d\n-------" % (epoch+1))

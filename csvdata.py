@@ -7,7 +7,7 @@ import pandas as pd
 
 def normalize_data(data):
     data = torch.FloatTensor(data)
-    data[abs(data) < 1e-8] = 1e-8
+    data[data < 1e-8] = 1e-8
     data = torch.log10(data)
     data /= 10.0
     return data

@@ -27,8 +27,8 @@ def calculate_error(sim_data, exp_data, ref_sim, ref_exp):
 
 input_dir = Path(args.input_dir)
 output_dir = Path(args.output_dir)
-files = ['1to5w/modeldata_0wto5w.mat', '5wto10w/modeldata_5wto10w.mat', '10wto15w/modeldata_10wto15w.mat', '15wto20w/modeldata_15wto20w.mat',
-         '20wto25w/modeldata_20wto25w.mat', '25wto30w/modeldata_25wto30w.mat']
+files = ['1to5w/modeldata_0wto5w.mat', '5wto10w/modeldata_5wto10w.mat'] #, '10wto15w/modeldata_10wto15w.mat', '15wto20w/modeldata_15wto20w.mat',
+         #'20wto25w/modeldata_20wto25w.mat', '25wto30w/modeldata_25wto30w.mat']
 num_samples = 50000
 num_mutations = 7  # number of mutations per sample
 num_inputs = 23  # how many parameters does the model have
@@ -75,16 +75,17 @@ for j in range(len(files)):
         error = calculate_error(outputs, WT_exp, ref_sim, ref_exp)
         input_data[ind * num_mutations + 0] = inputs
         output_data[ind * num_mutations + 0] = outputs
-        error_data[ind * num_mutations + 0, 0] = error
+        error_data[ind * num_mutations + 0] = error
         mutation_list[ind * num_mutations + 0] = 'WT'
         # CLF data
-        inputs = input_data_WT[j*num_samples+i].copy()
+        inputs = input_data_WT[j * num_samples + i].copy()
         inputs[18] = 0.0
+        inputs[22] = 0.0
         outputs = CLF_sim[i]
         error = calculate_error(outputs, CLF_exp, ref_sim, ref_exp)
         input_data[ind * num_mutations + 1] = inputs
         output_data[ind * num_mutations + 1] = outputs
-        error_data[ind * num_mutations + 1, 0] = error
+        error_data[ind * num_mutations + 1] = error
         mutation_list[ind * num_mutations + 1] = 'CLF'
         # NLF data
         inputs = input_data_WT[j*num_samples+i].copy()
@@ -93,7 +94,7 @@ for j in range(len(files)):
         error = calculate_error(outputs, WT_exp, ref_sim, ref_exp)
         input_data[ind * num_mutations + 2] = inputs
         output_data[ind * num_mutations + 2] = outputs
-        error_data[ind * num_mutations + 2, 0] = error
+        error_data[ind * num_mutations + 2] = error
         mutation_list[ind * num_mutations + 2] = 'NLF'
         # ALF data
         inputs = input_data_WT[j*num_samples+i].copy()
@@ -103,7 +104,7 @@ for j in range(len(files)):
         error = calculate_error(outputs, ALF_exp, ref_sim, ref_exp)
         input_data[ind * num_mutations + 3] = inputs
         output_data[ind * num_mutations + 3] = outputs
-        error_data[ind * num_mutations + 3, 0] = error
+        error_data[ind * num_mutations + 3] = error
         mutation_list[ind * num_mutations + 3] = 'ALF'
         # TLF data
         inputs = input_data_WT[j*num_samples+i].copy()
@@ -113,7 +114,7 @@ for j in range(len(files)):
         error = calculate_error(outputs, TLF_exp, ref_sim, ref_exp)
         input_data[ind * num_mutations + 4] = inputs
         output_data[ind * num_mutations + 4] = outputs
-        error_data[ind * num_mutations + 4, 0] = error
+        error_data[ind * num_mutations + 4] = error
         mutation_list[ind * num_mutations + 4] = 'TLF'
         # TALF data
         inputs = input_data_WT[j*num_samples+i].copy()
@@ -125,7 +126,7 @@ for j in range(len(files)):
         error = calculate_error(outputs, TALF_exp, ref_sim, ref_exp)
         input_data[ind * num_mutations + 5] = inputs
         output_data[ind * num_mutations + 5] = outputs
-        error_data[ind * num_mutations + 5, 0] = error
+        error_data[ind * num_mutations + 5] = error
         mutation_list[ind * num_mutations + 5] = 'TALF'
         # SLF data
         inputs = input_data_WT[j*num_samples+i].copy()
@@ -134,7 +135,7 @@ for j in range(len(files)):
         error = calculate_error(outputs, SLF_exp, ref_sim, ref_exp)
         input_data[ind * num_mutations + 6] = inputs
         output_data[ind * num_mutations + 6] = outputs
-        error_data[ind * num_mutations + 6, 0] = error
+        error_data[ind * num_mutations + 6] = error
         mutation_list[ind * num_mutations + 6] = 'SLF'
 
 

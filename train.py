@@ -24,7 +24,6 @@ from scipy.io import loadmat
 parser = argparse.ArgumentParser(description='Simulation Data Training')
 parser.add_argument('--data', default='', type=str, help='path to dataset')
 parser.add_argument('--lstm', action='store_true', help='use lstm')
-parser.add_argument('--use_k', action='store_true', help='use k values')
 parser.add_argument('-j', '--workers', default=4, type=int, help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', default=100, type=int, help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, help='manual epoch number (useful on restarts)')
@@ -249,6 +248,17 @@ def validate(val_loader, model, criterion, epoch, sstot, best_score, exp_vars, r
             target = target.cuda(args.gpu, non_blocking=True)
 
             # compute output
+            clf_inputs = inputs[1::7].clone()
+            clf_outputs = model(clf_inputs)
+            if args.lstm:
+                clf_outputs = torch.stack(clf_outputs)
+                clf_outputs = clf_outputs.squeeze().transpose(0,1)
+            k = clf_outputs.max(1)[0]
+            k = 4.1 * torch.pow(10.0, 10.0 * k)
+            k = k.repeat(7,1).transpose(0,1).flatten()
+            k = torch.log10(k) / 10.0
+            inputs[:,-1] = k
+            inputs[1::7,-1] = -0.8
             output = model(inputs)
             if args.lstm:
                 loss = 0.0

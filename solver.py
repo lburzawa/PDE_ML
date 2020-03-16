@@ -47,7 +47,8 @@ class Parameters:
         self.Vs = 100.0
         self.kit = 510.7204  # para_grid_ki[0]  # inhibitor constant of proteinase Tolloid
         self.kia = 550.5586  # para_grid_ki[1]  # inhibitor constant of proteinase bmp1a
-        self.k = 25.8752  # parameter for hill function
+        self.k = 1.0  # parameter for hill function
+        self.k_nn = 0.0
         self.ndor_Chd = round(self.Ldor_Chd * self.n / self.Ltot)
         self.ndor_Nog = round(self.Ldor_Nog * self.n / self.Ltot)
         x_lig = np.arange(0.0, self.Ltot + dx / 2, dx)
@@ -186,14 +187,14 @@ def read_from_file(parameters, path):
 
 
 def normalize_inputs(data):
-    data[abs(data) < 1e-8] = 1e-8
+    data[data < 1e-8] = 1e-8
     data = torch.log10(data)
     data /= 10.0
     return data
 
 
-def prepare_inputs(parameters):
-    inputs = torch.zeros(22)
+def parameters2inputs(parameters):
+    inputs = torch.zeros(23)
     inputs[0] = parameters.D_Nog
     inputs[1] = parameters.D_BMPChd
     inputs[2] = parameters.D_BMPNog
@@ -216,8 +217,7 @@ def prepare_inputs(parameters):
     inputs[19] = parameters.Vs
     inputs[20] = parameters.kit
     inputs[21] = parameters.kia
-    #inputs[21] = parameters.Vs
-    #print(inputs)
+    inputs[22] = parameters.k_nn
     inputs = inputs.unsqueeze(0)
     inputs = normalize_inputs(inputs)
     return inputs
@@ -255,109 +255,118 @@ def inputs2parameters(inputs):
     return parameters
 
 
-def solve_pde(parameters, ref_exp, ref_sim):
+def solve_pde(parameters):
     fun = set_ode_fun(parameters)
     sol = solve_ivp(fun, parameters.tspan, parameters.init, method='BDF', rtol=1e-9)
     BMP = sol.y[:36, -1]
-    #print(BMP)
-    #print(np.log10(BMP)/10.0)
-    if ref_sim is None:
-        ref_sim = (np.sort(BMP)[-5:]).mean()
-    BMP = BMP[0:32:2]
-    BMP *= ref_exp / ref_sim
-    return BMP, ref_sim
+    return BMP
 
 
-def solve_pde_nn(parameters, ref_exp, ref_nn, model):
-    inputs = prepare_inputs(parameters).cuda()
+def solve_pde_nn(parameters, model):
+    inputs = parameters2inputs(parameters).cuda()
     y = model(inputs).squeeze().detach().cpu().numpy()
-    #y = y.view(36, 6).cpu().numpy()
     y = np.power(10.0, 10.0 * y)
-    BMP = y #[:, 1]
-    #print(BMP)
-    if ref_nn is None:
-        ref_nn = (np.sort(BMP)[-5:]).mean()
+    BMP = y
+    return BMP
+
+
+def calculate_nrmse(BMP, BMP_exp, ref, ref_exp):
+    if ref is None:
+        ref = (np.sort(BMP)[-5:]).mean()
     BMP = BMP[0:32:2]
-    BMP *= ref_exp / ref_nn
-    return BMP, ref_nn
+    BMP *= ref_exp / ref
+    nrmse = np.sqrt(np.power(BMP - BMP_exp, 2).mean()) / 61.9087
+    return nrmse
 
 
 def run_simulation(parameters, options, model=None):
 
     results = []
 
+    # CLF simulation
+    j2 = parameters.j2
+    parameters.j2 = 0.0
+    if 'sim' in options:
+        CLF_sim = solve_pde(parameters)
+        parameters.k = CLF_sim.max() * 4.1
+    if 'nn' in options:
+        CLF_nn = solve_pde_nn(parameters, model)
+        parameters.k_nn = CLF_nn.max() * 4.1
+    parameters.j2 = j2
     # WT simulation
+    if 'sim' in options:
+        WT_sim = solve_pde(parameters)
+        ref_sim = (np.sort(WT_sim)[-5:]).mean()
+    if 'nn' in options:
+        WT_nn = solve_pde_nn(parameters, model)
+        ref_nn = (np.sort(WT_nn)[-5:]).mean()
+    # go back to WT and CLF to calculate NRMSE if needed
     if 'WT' in options:
         if 'sim' in options:
-            WT_sim, ref_sim = solve_pde(parameters, parameters.WT_ref_exp, None)
-            WT_nrmse = np.sqrt(np.power(WT_sim - parameters.WT_exp, 2).mean()) / 61.9087
+            WT_nrmse = calculate_nrmse(WT_sim, parameters.WT_exp, ref_sim, parameters.WT_ref_exp)
             results.append(WT_nrmse)
         if 'nn' in options:
-            WT_nn, ref_nn = solve_pde_nn(parameters, parameters.WT_ref_exp, None, model)
-            WT_nrmse_nn = np.sqrt(np.power(WT_nn - parameters.WT_exp, 2).mean()) / 61.9087
+            WT_nrmse_nn = calculate_nrmse(WT_nn, parameters.WT_exp, ref_nn, parameters.WT_ref_exp)
             results.append(WT_nrmse_nn)
         if 'sim' in options and 'nn' in options:
             WT_error = 100.0 * abs(WT_nrmse - WT_nrmse_nn) / WT_nrmse
             results.append(WT_error)
     if 'CLF' in options:
-        # CLF simulation
-        j2 = parameters.j2
-        parameters.j2 = 0.0
         if 'sim' in options:
-            CLF_sim, _ = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
-            CLF_nrmse = np.sqrt(np.power(CLF_sim - parameters.CLF_exp, 2).mean()) / 61.9087
+            CLF_nrmse = calculate_nrmse(CLF_sim, parameters.CLF_exp, ref_sim, parameters.WT_ref_exp)
             results.append(CLF_nrmse)
         if 'nn' in options:
-            CLF_nn, _ = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
-            CLF_nrmse_nn = np.sqrt(np.power(CLF_nn - parameters.CLF_exp, 2).mean()) / 61.9087
+            CLF_nrmse_nn = calculate_nrmse(CLF_nn, parameters.CLF_exp, ref_sim, parameters.WT_ref_exp)
             results.append(CLF_nrmse_nn)
         if 'sim' in options and 'nn' in options:
             CLF_error = 100.0 * abs(CLF_nrmse - CLF_nrmse_nn) / CLF_nrmse
             results.append(CLF_error)
-        parameters.j2 = j2
+    # NLF simulation
     if 'NLF' in options:
-        # NLF simulation
         j3 = parameters.j3
         parameters.j3 = 0.0
         if 'sim' in options:
-            NLF_sim, _ = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
-            NLF_nrmse = np.sqrt(np.power(NLF_sim - parameters.WT_exp, 2).mean()) / 61.9087
+            NLF_sim = solve_pde(parameters)
+            NLF_nrmse = calculate_nrmse(NLF_sim, parameters.WT_exp, ref_sim, parameters.WT_ref_exp)
             results.append(NLF_nrmse)
         if 'nn' in options:
-            NLF_nn, _ = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
-            NLF_nrmse_nn = np.sqrt(np.power(NLF_nn - parameters.WT_exp, 2).mean()) / 61.9087
+            NLF_nn = solve_pde_nn(parameters, model)
+            NLF_nrmse_nn = calculate_nrmse(NLF_nn, parameters.WT_exp, ref_sim, parameters.WT_ref_exp)
             results.append(NLF_nrmse_nn)
         if 'sim' in options and 'nn' in options:
             NLF_error = 100.0 * abs(NLF_nrmse - NLF_nrmse_nn) / NLF_nrmse
             results.append(NLF_error)
         parameters.j3 = j3
+    # ALF simulation
     if 'ALF' in options:
-        # ALF simulation
         lambda_bmp1a_Chd = parameters.lambda_bmp1a_Chd
         lambda_bmp1a_BMPChd = parameters.lambda_bmp1a_BMPChd
         parameters.lambda_bmp1a_Chd = 0.0
         parameters.lambda_bmp1a_BMPChd = 0.0
         if 'sim' in options:
-            ALF_sim, _ = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
-            ALF_nrmse = np.sqrt(np.power(ALF_sim - parameters.ALF_exp, 2).mean()) / 61.9087
+            ALF_sim = solve_pde(parameters)
+            ALF_nrmse = calculate_nrmse(ALF_sim, parameters.ALF_exp, ref_sim, parameters.WT_ref_exp)
+            results.append(ALF_nrmse)
         if 'nn' in options:
-            ALF_nn, _ = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
-            ALF_nrmse_nn = np.sqrt(np.power(ALF_nn - parameters.ALF_exp, 2).mean()) / 61.9087
+            ALF_nn = solve_pde_nn(parameters, model)
+            ALF_nrmse_nn = calculate_nrmse(ALF_nn, parameters.ALF_exp, ref_sim, parameters.WT_ref_exp)
+            results.append(ALF_nrmse)
         if 'sim' in options and 'nn' in options:
             ALF_error = 100.0 * abs(ALF_nrmse - ALF_nrmse_nn) / ALF_nrmse
+            results.append(ALF_error)
         parameters.lambda_bmp1a_Chd = lambda_bmp1a_Chd
         parameters.lambda_bmp1a_BMPChd = lambda_bmp1a_BMPChd
+    # TLF simulation
     if 'TLF' in options:
-        # TLF simulation
         lambda_Tld_Chd = parameters.lambda_Tld_Chd
         lambda_Tld_BMPChd = parameters.lambda_Tld_BMPChd
         parameters.lambda_Tld_Chd = 0.0
         parameters.lambda_Tld_BMPChd = 0.0
         if 'sim' in options:
-            TLF_sim, _ = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
+            TLF_sim = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
             TLF_nrmse = np.sqrt(np.power(TLF_sim - parameters.TLF_exp, 2).mean()) / 61.9087
         if 'nn' in options:
-            TLF_nn, _ = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
+            TLF_nn = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
             TLF_nrmse_nn = np.sqrt(np.power(TLF_nn - parameters.TLF_exp, 2).mean()) / 61.9087
         if 'sim' in options and 'nn' in options:
             TLF_error = 100.0 * abs(TLF_nrmse - TLF_nrmse_nn) / TLF_nrmse
@@ -374,10 +383,10 @@ def run_simulation(parameters, options, model=None):
         parameters.lambda_Tld_Chd = 0.0
         parameters.lambda_Tld_BMPChd = 0.0
         if 'sim' in options:
-            TALF_sim, _ = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
+            TALF_sim = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
             TALF_nrmse = np.sqrt(np.power(TALF_sim - parameters.TALF_exp, 2).mean()) / 61.9087
         if 'nn' in options:
-            TALF_nn, _ = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
+            TALF_nn = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
             TALF_nrmse_nn = np.sqrt(np.power(TALF_nn - parameters.TALF_exp, 2).mean()) / 61.9087
         if 'sim' in options and 'nn' in options:
             TALF_error = 100.0 * abs(TALF_nrmse - TALF_nrmse_nn) / TALF_nrmse
@@ -390,10 +399,10 @@ def run_simulation(parameters, options, model=None):
         Vs = parameters.Vs
         parameters.Vs = 0.0
         if 'sim' in options:
-            SLF_sim, _ = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
+            SLF_sim = solve_pde(parameters, parameters.WT_ref_exp, ref_sim)
             SLF_nrmse = np.sqrt(np.power(SLF_sim - parameters.SLF_exp, 2).mean()) / 61.9087
         if 'nn' in options:
-            SLF_nn, _ = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
+            SLF_nn = solve_pde_nn(parameters, parameters.WT_ref_exp, ref_nn, model)
             SLF_nrmse_nn = np.sqrt(np.power(SLF_nn - parameters.SLF_exp, 2).mean()) / 61.9087
         if 'sim' in options and 'nn' in options:
             SLF_error = 100.0 * abs(SLF_nrmse - SLF_nrmse_nn) / SLF_nrmse
@@ -410,7 +419,8 @@ if __name__ == '__main__':
     random.seed(0)
     os.environ['MKL_NUM_THREADS'] = '1'
 
-    model = ModelSimple().cuda().eval()
+    '''
+    model = ModelSimple(23).cuda().eval()
     model_path = './model_best.pth.tar'
     print("=> loading checkpoint '{}'".format(model_path))
     checkpoint = torch.load(model_path)
@@ -418,19 +428,18 @@ if __name__ == '__main__':
     print(best_score)
     model.load_state_dict(checkpoint['state_dict'])
     print("=> loaded checkpoint '{}' (epoch {})".format(model_path, checkpoint['epoch']))
-
+    '''
+    
     parameters_list = []
     min_val = 1.0
     total_error = 0.0
-    options = ['WT', 'CLF', 'sim']
+    options = ['WT','CLF','NLF','sim']
     parameters = Parameters()
     start_time = time()
     for i in range(1000):
         set_discrete_parameters(parameters)
         results = run_simulation(parameters, options)
-        #print(parameters_list[i])
-        #total_error += results[0]
-        result = results[0] + results[1]
+        result = sum(results)
         min_val = min(min_val, result)
         print(i, result, min_val)
         #break
