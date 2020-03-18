@@ -18,22 +18,20 @@ targets = targets.iloc[:, 23:23+36].to_numpy()
 targets = np.log10(targets)
 outputs = np.loadtxt('./results.csv', delimiter=',')
 
-'''
-outputs = outputs[:, :-2]
-outputs = np.log10(outputs)
-for i in range(6):
+BMP_outputs = outputs[:, :-2]
+BMP_outputs = np.log10(BMP_outputs)
+for i in range(7):
     plt.xlabel('X value')
     plt.ylabel('Concentration (log10 scale)')
     plt.grid()
     target = targets[i*7 + i]
-    output = outputs[i*7 + i]
+    output = BMP_outputs[i*7 + i]
     plt.plot(x_values, target)
     plt.plot(x_values, output)
     plt.title('{:s} mutation'.format(mutation_strings[i]))
     plt.legend(['Simulation', 'NN'])
     plt.savefig('./plot{:d}.png'.format(i))
     plt.clf()
-'''
 
 sim_data = outputs[:, -2]
 nn_data = outputs[:, -1]
@@ -134,7 +132,7 @@ for j in range(2):
     CLF = CLF[CLF>0.0]
 
     area = 0.0
-    step = 0.01
+    step = 0.02
     WT_front = []
     CLF_front = []
     for i in np.flip(np.arange(0.0, 0.2, step)):
@@ -164,12 +162,12 @@ for j in range(2):
         plt.title('PDE simulation')
     else:
         plt.title('Neural network model')
-    plt.grid()
+    #plt.grid()
     axes = plt.gca()
     axes.set_ylim(0.0, 0.2)
     axes.set_xlim(0.0, 0.2)
-    plt.plot(WT, CLF, '.')
-    plt.plot(WT_front, CLF_front)
+    plt.scatter(WT, CLF)
+    #plt.plot(WT_front, CLF_front)
     if j==0:
         plt.savefig('./plot_pareto_sim.png')
     else:
