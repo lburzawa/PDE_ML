@@ -11,6 +11,13 @@ parser = argparse.ArgumentParser(description='Simulation Data Training')
 parser.add_argument('--target_data', default='', type=str, help='path to dataset')
 args = parser.parse_args()
 
+A=np.loadtxt('./save_rl/test.txt', delimiter=',')
+plt.plot(A[:, 0], A[:, 2])
+plt.xlabel('Number of simulations in 100s')
+plt.ylabel('Mean error over 100 simulations')
+plt.grid()
+plt.savefig('./plot_rl.png')
+
 mutation_strings = ['WT', 'CLF', 'NLF', 'ALF', 'TLF', 'TALF', 'SLF']
 x_values = np.arange(36)
 targets = pd.read_csv(args.target_data, header=None)
