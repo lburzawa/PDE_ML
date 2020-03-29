@@ -120,6 +120,39 @@ plt.title('Neural network model')
 plt.savefig('./plot_pareto_nn_all.png')
 plt.clf()
 
+# pareto plot
+plt.xlabel('WT NRMSE')
+plt.ylabel('CLF NRMSE')
+plt.title('Comparison of Pareto frontiers')
+plt.grid()
+for k in range(2):
+    if k==0:
+        WT, CLF = WT_sim.copy(), CLF_sim.copy()
+    if k==1:
+        WT, CLF = WT_nn.copy(), CLF_nn.copy()
+    WT_ind, CLF_ind = np.argmin(WT), np.argmin(CLF)
+    WT_min, WT_max, CLF_min, CLF_max = WT[WT_ind], WT[CLF_ind], CLF[CLF_ind], CLF[WT_ind]
+    print(WT_min, WT_max, CLF_min, CLF_max)
+    ind = np.float64(WT >= WT_min) * np.float64(WT <= WT_max) * np.float64(CLF >= CLF_min) * np.float64(CLF <= CLF_max)
+    WT, CLF = WT*ind, CLF*ind
+    WT, CLF = WT[WT>0.0], CLF[CLF>0.0]
+    ind = np.ones((WT.shape[0],), dtype=np.int32)
+    for i in range(WT.shape[0]-1):
+        for j in range(i+1, WT.shape[0]):
+            if WT[i] < WT[j] and CLF[i] < CLF[j]:
+                ind[j] = 0
+            if WT[j] < WT[i] and CLF[j] < CLF[i]:
+                ind[i] = 0
+    WT, CLF = WT*ind, CLF*ind
+    WT, CLF = WT[WT>0.0], CLF[CLF>0.0]
+    ind = np.argsort(WT)
+    WT, CLF = WT[ind], CLF[ind]
+    print(WT)
+    plt.plot(WT, CLF, '-o')
+plt.legend(['Simulation', 'NN'])
+plt.savefig('./plot_pareto_front.png')
+plt.clf()
+
 for j in range(2):
     if j==0:
         data = sim_data
@@ -138,31 +171,7 @@ for j in range(2):
     WT = WT[WT>0.0]
     CLF = CLF[CLF>0.0]
 
-    area = 0.0
-    step = 0.02
-    WT_front = []
-    CLF_front = []
-    for i in np.flip(np.arange(0.0, 0.2, step)):
-        ind = np.logical_and(CLF >= i, CLF < i + step)
-        WT_vals = WT[ind]
-        CLF_vals = CLF[ind]
-        if WT_vals.size > 0:
-            ind = np.argmin(WT_vals)
-            WT_front.append(WT_vals[ind])
-            CLF_front.append(CLF_vals[ind])
-            area += step * WT_vals[ind]
-    for i in np.arange(0.0, 0.2, step):
-        ind = np.logical_and(WT >= i, WT < i+step)
-        WT_vals = WT[ind]
-        CLF_vals = CLF[ind]
-        if WT_vals.size > 0:
-            ind = np.argmin(CLF_vals)
-            WT_front.append(WT_vals[ind])
-            CLF_front.append(CLF_vals[ind])
-            area += step * CLF_vals[ind]
-    WT_front = np.float64(WT_front)
-    CLF_front = np.float64(CLF_front)
-
+    plt.figure(1)
     plt.xlabel('WT NRMSE')
     plt.ylabel('CLF NRMSE')
     if j==0:
@@ -174,11 +183,37 @@ for j in range(2):
     axes.set_ylim(0.0, 0.2)
     axes.set_xlim(0.0, 0.2)
     plt.scatter(WT, CLF)
-    #plt.plot(WT_front, CLF_front)
     if j==0:
         plt.savefig('./plot_pareto_sim.png')
     else:
         plt.savefig('./plot_pareto_nn.png')
     plt.clf()
 
-    print(area)
+    plt.figure(2)
+    plt.xlabel('WT NRMSE')
+    plt.ylabel('CLF NRMSE')
+    plt.title('Comparison of Pareto frontiers')
+    WT_ind, CLF_ind = np.argmin(WT), np.argmin(CLF)
+    WT_min, WT_max, CLF_min, CLF_max = WT[WT_ind], WT[CLF_ind], CLF[CLF_ind], CLF[WT_ind]
+    print(WT_min, WT_max, CLF_min, CLF_max)
+    ind = np.float64(WT >= WT_min) * np.float64(WT <= WT_max) * np.float64(CLF >= CLF_min) * np.float64(CLF <= CLF_max)
+    WT, CLF = WT*ind, CLF*ind
+    WT, CLF = WT[WT>0.0], CLF[CLF>0.0]
+    ind = np.ones((WT.shape[0],), dtype=np.int32)
+    for i in range(WT.shape[0]-1):
+        for j in range(i+1, WT.shape[0]):
+            if WT[i] < WT[j] and CLF[i] < CLF[j]:
+                ind[j] = 0
+            if WT[j] < WT[i] and CLF[j] < CLF[i]:
+                ind[i] = 0
+    WT, CLF = WT*ind, CLF*ind
+    WT, CLF = WT[WT>0.0], CLF[CLF>0.0]
+    ind = np.argsort(WT)
+    WT, CLF = WT[ind], CLF[ind]
+    print(WT)
+    plt.plot(WT, CLF, '-o')
+
+plt.figure(2)
+plt.grid()
+plt.legend(['simulation', 'nn'])
+plt.savefig('./plot_pareto_front2.png')
