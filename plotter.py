@@ -11,12 +11,22 @@ parser = argparse.ArgumentParser(description='Simulation Data Training')
 parser.add_argument('--target_data', default='', type=str, help='path to dataset')
 args = parser.parse_args()
 
+A=np.loadtxt('./test.txt', delimiter=',')
+x = np.arange(100)
+plt.plot(x, A)
+plt.xlabel('Epoch')
+plt.ylabel('Relative error [%]')
+plt.grid()
+plt.savefig('./plot_train.png')
+plt.clf()
+
 A=np.loadtxt('./save_rl/test.txt', delimiter=',')
 plt.plot(A[:, 0], A[:, 2])
 plt.xlabel('Number of simulations in 100s')
 plt.ylabel('Mean error over 100 simulations')
 plt.grid()
 plt.savefig('./plot_rl.png')
+plt.clf()
 
 mutation_strings = ['WT', 'CLF', 'NLF', 'ALF', 'TLF', 'TALF', 'SLF']
 x_values = np.arange(36)
@@ -35,7 +45,7 @@ for i in range(7):
     output = BMP_outputs[i*7 + i]
     plt.plot(x_values, target)
     plt.plot(x_values, output)
-    plt.title('{:s} mutation'.format(mutation_strings[i]))
+    #plt.title('{:s} mutation'.format(mutation_strings[i]))
     plt.legend(['Simulation', 'NN'])
     plt.savefig('./plot{:d}.png'.format(i))
     plt.clf()
@@ -58,7 +68,7 @@ CLF_nn = CLF_nn[CLF_nn>0.0]
 
 plt.xlabel('Simulation NRMSE')
 plt.ylabel('Neural network NRMSE')
-plt.title('WT results')
+#plt.title('WT results')
 #plt.grid()
 axes = plt.gca()
 axes.set_ylim(0.0, 1.0)
@@ -86,7 +96,7 @@ x, y, z = x[idx], y[idx], z[idx]
 plt.scatter(x, y, c=z)
 plt.xlabel('Simulation NRMSE')
 plt.ylabel('Neural network NRMSE')
-plt.title('CLF results')
+#plt.title('CLF results')
 plt.savefig('./CLF_comp.png')
 plt.clf()
 
@@ -101,8 +111,8 @@ x, y, z = x[idx], y[idx], z[idx]
 plt.scatter(x, y, c=z)
 plt.xlabel('WT NRMSE')
 plt.ylabel('CLF NRMSE')
-plt.title('PDE simulation')
-plt.savefig('./plot_pareto_sim_all.png')
+#plt.title('PDE simulation')
+plt.savefig('./plot_wtclf_sim_all.png')
 plt.clf()
 
 axes = plt.gca()
@@ -116,8 +126,8 @@ x, y, z = x[idx], y[idx], z[idx]
 plt.scatter(x, y, c=z)
 plt.xlabel('WT NRMSE')
 plt.ylabel('CLF NRMSE')
-plt.title('Neural network model')
-plt.savefig('./plot_pareto_nn_all.png')
+#plt.title('Neural network model')
+plt.savefig('./plot_wtclf_nn_all.png')
 plt.clf()
 
 # pareto plot
@@ -174,25 +184,28 @@ for j in range(2):
     plt.figure(1)
     plt.xlabel('WT NRMSE')
     plt.ylabel('CLF NRMSE')
-    if j==0:
-        plt.title('PDE simulation')
-    else:
-        plt.title('Neural network model')
+    #if j==0:
+    #    plt.title('PDE simulation')
+    #else:
+    #    plt.title('Neural network model')
     #plt.grid()
     axes = plt.gca()
     axes.set_ylim(0.0, 0.2)
     axes.set_xlim(0.0, 0.2)
     plt.scatter(WT, CLF)
     if j==0:
-        plt.savefig('./plot_pareto_sim.png')
+        plt.savefig('./plot_wtclf_sim.png')
     else:
-        plt.savefig('./plot_pareto_nn.png')
+        plt.savefig('./plot_wtclf_nn.png')
     plt.clf()
 
     plt.figure(2)
+    #axes = plt.gca()
+    #axes.set_ylim(0.0, 0.07)
+    #axes.set_xlim(0.0, 0.11)
     plt.xlabel('WT NRMSE')
     plt.ylabel('CLF NRMSE')
-    plt.title('Comparison of Pareto frontiers')
+    #plt.title('Comparison of Pareto frontiers')
     WT_ind, CLF_ind = np.argmin(WT), np.argmin(CLF)
     WT_min, WT_max, CLF_min, CLF_max = WT[WT_ind], WT[CLF_ind], CLF[CLF_ind], CLF[WT_ind]
     print(WT_min, WT_max, CLF_min, CLF_max)
@@ -215,5 +228,5 @@ for j in range(2):
 
 plt.figure(2)
 plt.grid()
-plt.legend(['simulation', 'nn'])
+plt.legend(['Simulation', 'NN'])
 plt.savefig('./plot_pareto_front2.png')

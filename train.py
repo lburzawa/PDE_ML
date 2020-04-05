@@ -104,6 +104,8 @@ def main():
         validate(val_loader, model, criterion, -1, sstot_val, best_score, exp_vars, ref_exp, args)
         return
 
+    of = open('test.txt', 'w')
+    
     for epoch in range(args.start_epoch, args.epochs):
 
         #adjust_learning_rate(optimizer, epoch, args)
@@ -112,7 +114,9 @@ def main():
         train(train_loader, model, criterion, optimizer, epoch, sstot_train, args)
 
         # evaluate on validation set
-        is_best, best_score = validate(val_loader, model, criterion, epoch, sstot_val, best_score, exp_vars, ref_exp, args)
+        is_best, best_score, error = validate(val_loader, model, criterion, epoch, sstot_val, best_score, exp_vars, ref_exp, args)
+        of.write("{:f}\n".format(error))
+        of.flush()
 
         # save checkpoint
         save_checkpoint({
@@ -121,6 +125,8 @@ def main():
             'best_score': best_score,
             'optimizer' : optimizer.state_dict(),
         }, is_best)
+
+    of.close()
 
 
 def train(train_loader, model, criterion, optimizer, epoch, sstot, args):
@@ -328,7 +334,7 @@ def validate(val_loader, model, criterion, epoch, sstot, best_score, exp_vars, r
         #print(10 ** (10.0 * target[16, :, 1]))
         #print(10**(10.0*output[16,:,1]))
 
-    return is_best, best_score
+    return is_best, best_score, sim_error_clean
 
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
