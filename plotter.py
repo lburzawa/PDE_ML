@@ -6,10 +6,14 @@ import matplotlib.pyplot as plt
 import torch
 import pandas as pd
 from scipy.stats import gaussian_kde
+from pathlib import Path
 
 parser = argparse.ArgumentParser(description='Simulation Data Training')
 parser.add_argument('--target_data', default='', type=str, help='path to dataset')
+parser.add_argument('--save', default='', type=str, help='path where to save plots')
 args = parser.parse_args()
+
+save_dir = Path(args.save)
 
 A=np.loadtxt('./test.txt', delimiter=',')
 x = np.arange(100)
@@ -33,7 +37,7 @@ x_values = np.arange(36)
 targets = pd.read_csv(args.target_data, header=None)
 targets = targets.iloc[:, 23:23+36].to_numpy()
 targets = np.log10(targets)
-outputs = np.loadtxt('./results.csv', delimiter=',')
+outputs = np.loadtxt('./results_lstm.csv', delimiter=',')
 
 BMP_outputs = outputs[:, :-2]
 BMP_outputs = np.log10(BMP_outputs)
@@ -47,7 +51,7 @@ for i in range(7):
     plt.plot(x_values, output)
     #plt.title('{:s} mutation'.format(mutation_strings[i]))
     plt.legend(['Simulation', 'NN'])
-    plt.savefig('./plot{:d}.png'.format(i))
+    plt.savefig(save_dir / 'plot{:d}.png'.format(i))
     plt.clf()
 
 sim_data = outputs[:, -2]
@@ -82,7 +86,7 @@ x, y, z = x[idx], y[idx], z[idx]
 #fig, ax = plt.subplots()
 plt.scatter(x, y, c=z) #, s=50) #, edgecolor='')
 #plt.colorbar()
-plt.savefig('./WT_comp.png')
+plt.savefig(save_dir / 'WT_comp.png')
 plt.clf()
 
 axes = plt.gca()
@@ -97,7 +101,7 @@ plt.scatter(x, y, c=z)
 plt.xlabel('Simulation NRMSE')
 plt.ylabel('Neural network NRMSE')
 #plt.title('CLF results')
-plt.savefig('./CLF_comp.png')
+plt.savefig(save_dir / 'CLF_comp.png')
 plt.clf()
 
 axes = plt.gca()
@@ -112,7 +116,7 @@ plt.scatter(x, y, c=z)
 plt.xlabel('WT NRMSE')
 plt.ylabel('CLF NRMSE')
 #plt.title('PDE simulation')
-plt.savefig('./plot_wtclf_sim_all.png')
+plt.savefig(save_dir / 'plot_wtclf_sim_all.png')
 plt.clf()
 
 axes = plt.gca()
@@ -127,7 +131,7 @@ plt.scatter(x, y, c=z)
 plt.xlabel('WT NRMSE')
 plt.ylabel('CLF NRMSE')
 #plt.title('Neural network model')
-plt.savefig('./plot_wtclf_nn_all.png')
+plt.savefig(save_dir / 'plot_wtclf_nn_all.png')
 plt.clf()
 
 # pareto plot
@@ -160,7 +164,7 @@ for k in range(2):
     print(WT)
     plt.plot(WT, CLF, '-o')
 plt.legend(['Simulation', 'NN'])
-plt.savefig('./plot_pareto_front.png')
+plt.savefig(save_dir / 'plot_pareto_front.png')
 plt.clf()
 
 for j in range(2):
@@ -194,9 +198,9 @@ for j in range(2):
     axes.set_xlim(0.0, 0.2)
     plt.scatter(WT, CLF)
     if j==0:
-        plt.savefig('./plot_wtclf_sim.png')
+        plt.savefig(save_dir / 'plot_wtclf_sim.png')
     else:
-        plt.savefig('./plot_wtclf_nn.png')
+        plt.savefig(save_dir / 'plot_wtclf_nn.png')
     plt.clf()
 
     plt.figure(2)
@@ -229,4 +233,4 @@ for j in range(2):
 plt.figure(2)
 plt.grid()
 plt.legend(['Simulation', 'NN'])
-plt.savefig('./plot_pareto_front2.png')
+plt.savefig(save_dir / 'plot_pareto_front2.png')
